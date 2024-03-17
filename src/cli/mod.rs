@@ -4,7 +4,7 @@ use config_file::FromConfigFile;
 use log::{debug, error, info};
 use solana_client::rpc_client::RpcClient;
 use solana_client::rpc_request::TokenAccountsFilter;
-use solana_program::native_token::sol_to_lamports;
+use solana_program::native_token::{lamports_to_sol, sol_to_lamports};
 use solana_program::pubkey::Pubkey;
 use solana_sdk::genesis_config::ClusterType;
 use solana_sdk::signature::{Keypair, Signer};
@@ -240,9 +240,14 @@ pub async fn create_token(
         return;
     }
 
-    let balance = rpc_client.get_balance(&keypair.pubkey()).unwrap();
-    if balance <= sol_to_lamports(0.2) {
-        error!("Insufficient balance to create token. Requires at least 0.25 SOL");
+    let account_pub = &keypair.pubkey();
+    info!("Account: {}", account_pub.to_string());
+
+    let balance = rpc_client.get_balance(account_pub).unwrap();
+    info!("Wallet Balance: {:?} SOL", lamports_to_sol(balance));
+
+    if lamports_to_sol(balance) < 0.021f64 {
+        error!("Insufficient balance to create token. Requires at least 0.021 SOL");
         return;
     }
 
