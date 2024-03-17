@@ -31,5 +31,5 @@ rand = "0.8.5"
 bumpalo = { version = "3.15.4", features = ["collections"] }
 reqwest = "0.11.26"
 sha2 = "0.10.8"
-tungstenite = "0.21"
+tungstenite = { version = "0.21", features = ["native-tls"] }
 url = "2.5.0"
