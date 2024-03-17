@@ -48,6 +48,18 @@ pub enum Commands {
         #[arg(short = 'p', default_value_t = 50.0)]
         percentage: f64,
     },
+
+    /// Generate Wallets for Project
+    GenerateWallet {
+        /// Wallet generation count
+        #[arg(short='c', long)]
+        count: i32,
+
+        /// Replace current wallets in the project
+        #[arg(long, default_value_t = false)]
+        replace: bool,
+    },
+
     /// Open an Opendex Market Listing
     Market {
         /// Quote mint

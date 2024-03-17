@@ -135,17 +135,18 @@ async fn main() {
                 return;
             }
             _ => {
-                info!("Project name is required for this command");
-                return;
             }
         }
     }
 
-
     // load project directory
+    if args.name.is_none() {
+        info!("Project name is required for this command");
+        return;
+    }
+
     let project_dir = format!("{}/{}", config.project_directory, args.name.unwrap());
     info!("Project directory: {:?}", project_dir);
-
 
     let project_config_file = format!("{}/config.yaml", project_dir);
     let mut has_project_config = true;
@@ -205,7 +206,7 @@ async fn main() {
             cli::create_token(
                 &rpc_client,
                 &keypair,
-                project_dir.clone(),
+                &project_dir,
                 &config,
                 &mut project_config,
                 project_config_file,
@@ -229,6 +230,15 @@ async fn main() {
     }
 
     match args.command {
+        Commands::GenerateWallet { count, replace } => {
+            cli::generate_wallets(
+                &project_config_file,
+                &mut project_config,
+                count,
+                replace
+            ).await;
+        }
+
         Commands::Airdrop {
             percentage
         } => {

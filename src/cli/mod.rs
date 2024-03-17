@@ -205,7 +205,7 @@ pub async fn get_pool_information(
 pub async fn create_token(
     rpc_client: &RpcClient,
     keypair: &Keypair,
-    project_dir: String,
+    project_dir: &str,
     config: &Config,
     project_config: &mut ProjectConfig,
     project_config_file: String,
@@ -805,5 +805,32 @@ pub async fn buy(rpc_client: &RpcClient,
             &amm_info,
             cluster_type
         );
+    }
+}
+
+pub async fn generate_wallets(project_config_file: &str,
+                              project_config: &mut ProjectConfig,
+                              count: i32,
+                              replace: bool) {
+    let mut wallets: Vec<Keypair> = vec![];
+    for _ in 0..count {
+        wallets.push(Keypair::new().insecure_clone());
+    }
+
+    let wallet_bs58 = wallets.iter().map(|w| w.to_base58_string()).collect();
+    if replace {
+        project_config.wallets = wallet_bs58;
+    } else {
+        project_config.wallets.extend(wallet_bs58);
+    }
+
+    match std::fs::write(&project_config_file, serde_yaml::to_string(&project_config).unwrap()) {
+        Ok(_) => {
+            info!("Project config updated");
+        },
+        Err(e) => {
+            error!("Error updating project config: {:?}", e);
+            return;
+        }
     }
 }
