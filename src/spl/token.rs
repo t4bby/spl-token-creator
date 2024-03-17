@@ -114,13 +114,7 @@ pub fn create(rpc_client: &RpcClient,
         rpc_client.get_recent_blockhash().unwrap().0
     );
 
-    match rpc_client.send_transaction_with_config(&transaction, RpcSendTransactionConfig {
-        skip_preflight: true,
-        preflight_commitment: None,
-        encoding: None,
-        max_retries: None,
-        min_context_slot: None,
-    }) {
+    match rpc_client.send_and_confirm_transaction(&transaction) {
         Ok(a) => {
             info!("Token created");
             info!("Token address: {:?}", token_keypair.pubkey());
