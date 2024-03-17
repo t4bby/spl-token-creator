@@ -15,6 +15,21 @@ nft_storage_api_key: "NFTSTORAGE_API_KEY"
 project_directory: "/my-project-dir"
 ```
 
+## Project Configuration
+project-dir/project-name/config.yaml
+```yaml
+name: NAME
+symbol: SYMBOL
+description: ''
+mint_amount: 10000000
+decimal: 6
+image_filename: icon.jpg
+metadata_uri: ''
+token_keypair: ''
+wallets: []
+wsol_wallets: []
+```
+
 ## Usage
 
 ```bash
