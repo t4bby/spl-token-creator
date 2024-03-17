@@ -5,6 +5,7 @@ mod api;
 
 mod utils;
 
+use std::io;
 use chrono::Local;
 use env_logger::Builder;
 use std::io::Write;
@@ -21,7 +22,7 @@ use crate::cli::config::{Config, ProjectConfig, WalletFile};
 
 #[tokio::main(flavor = "multi_thread", worker_threads = 10)]
 async fn main() {
-    let args: CliArgs = CliArgs::parse();
+    let mut args: CliArgs = CliArgs::parse();
 
     let mut log_builder = Builder::new();
     log_builder.format(|buf, record| {
@@ -45,6 +46,10 @@ async fn main() {
 
     log_builder.init();
 
+    args.name = match args.name {
+        Some(name) => Some(name.to_lowercase()),
+        None => None
+    };
 
     let mut project_empty = false;
     if args.name.is_none() {
@@ -56,6 +61,9 @@ async fn main() {
                 project_empty = true;
             },
             Commands::PoolInformation { .. } => {
+                project_empty = true;
+            },
+            Commands::GenerateProject { .. } => {
                 project_empty = true;
             },
             _ => {}
@@ -97,6 +105,102 @@ async fn main() {
 
     if project_empty {
         match args.command {
+            Commands::GenerateProject { name, symbol, icon, mint, decimal } => {
+                println!("Generating project files");
+
+                let mut name = name.unwrap_or_else(|| {
+                    print!("Enter Token Name: ");
+                    io::stdout().flush().unwrap();
+
+                    let mut input = String::new();
+                    io::stdin().read_line(&mut input)
+                               .expect("Invalid Input");
+                    input
+                });
+
+                let mut symbol = symbol.unwrap_or_else(|| {
+                    print!("Enter Token Symbol: ");
+                    io::stdout().flush().unwrap();
+
+                    let mut input = String::new();
+                    io::stdin().read_line(&mut input)
+                               .expect("Invalid Input");
+                    input
+                });
+
+                let mut icon = icon.unwrap_or_else(|| {
+                    print!("Enter Icon Name [eg. icon.jpg]: ");
+                    io::stdout().flush().unwrap();
+
+                    let mut input = String::new();
+                    io::stdin().read_line(&mut input)
+                               .expect("Invalid Input");
+                    input
+                });
+
+                print!("Enter Description File Location [eg. description.txt]: ");
+                io::stdout().flush().unwrap();
+                let mut description_file_path = String::new();
+
+                io::stdin().read_line(&mut description_file_path)
+                           .expect("Invalid Input");
+
+                description_file_path = description_file_path.trim().to_string();
+                println!("Description File: {:?}", description_file_path);
+
+                let contents = std::fs::read_to_string(description_file_path)
+                    .expect("Should have been able to read the file");
+
+                name = name.trim().to_string();
+                symbol = symbol.trim().to_string();
+                icon = icon.trim().to_string();
+
+                println!();
+                println!("Project Name: {}", &name);
+                println!("Project Symbol: {}", &symbol);
+                println!("Icon Path: {}", &icon);
+                println!("Description: {}", &contents);
+
+                let project_dir = format!("{}/{}", config.project_directory, &name.to_lowercase());
+                println!("Project Directory: {}", project_dir);
+
+                match std::fs::create_dir(project_dir) {
+                    Ok(_) => {
+                        info!("Project directory created");
+                    }
+                    Err(_) => {
+                        error!("Project directory already exists");
+                        return;
+                    }
+                };
+
+                let project_config = ProjectConfig {
+                    name: name.clone(),
+                    symbol,
+                    description: contents,
+                    mint_amount: mint,
+                    decimal,
+                    image_filename: icon.clone(),
+                    metadata_uri: "".to_string(),
+                    token_keypair: "".to_string(),
+                    wallets: vec![],
+                    wsol_wallets: vec![],
+                };
+
+                let project_config_file = format!("{}/{}/config.yaml", config.project_directory, name.clone());
+                std::fs::write(
+                    &project_config_file,
+                    serde_yaml::to_string(&project_config).unwrap()
+                ).expect("Failed to write project config file");
+
+                println!("NOTE: The icon ({}) you've added should be inside {}/{}",
+                         icon.clone(),
+                         config.project_directory,
+                         name);
+
+                return;
+            },
+
             Commands::Buy { mint, quote_mint, amount, wait, skip } => {
                 cli::buy(
                     &rpc_client,
@@ -134,8 +238,7 @@ async fn main() {
                 ).await;
                 return;
             }
-            _ => {
-            }
+            _ => {}
         }
     }
 

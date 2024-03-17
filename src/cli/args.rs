@@ -49,6 +49,29 @@ pub enum Commands {
         percentage: f64,
     },
 
+    /// Generate project files
+    GenerateProject {
+        /// Project Name
+        #[arg(long, short = 'n')]
+        name: Option<String>,
+
+        /// Project Symbol
+        #[arg(long, short = 's')]
+        symbol: Option<String>,
+
+        /// Project Icon File Path
+        #[arg(long, short = 'i')]
+        icon: Option<String>,
+
+        /// Token Mint
+        #[arg(long, short = 'm', default_value_t = 10000000)]
+        mint: u64,
+
+        /// Token Decimal
+        #[arg(long, short = 'd', default_value_t = 8)]
+        decimal: u8,
+    },
+
     /// Generate Wallets for Project
     GenerateWallet {
         /// Wallet generation count
