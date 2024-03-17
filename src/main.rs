@@ -13,10 +13,10 @@ use clap::Parser;
 use log::{error, info};
 use solana_client::rpc_client::RpcClient;
 use solana_sdk::signature::Keypair;
-use config_file::FromConfigFile;
+use config_file::{FromConfigFile};
 use solana_sdk::genesis_config::ClusterType;
 use crate::cli::args::{CliArgs, Commands};
-use crate::cli::config::{Config, ProjectConfig};
+use crate::cli::config::{Config, ProjectConfig, WalletFile};
 
 
 #[tokio::main(flavor = "multi_thread", worker_threads = 10)]
@@ -70,7 +70,22 @@ async fn main() {
     };
 
     let rpc_client = RpcClient::new(config.rpc_url.clone());
-    let keypair = Keypair::from_base58_string(&config.wallet_keypair);
+    let mut keypair = Keypair::from_base58_string(&config.wallet_keypair);
+
+    if args.keypair.is_some() {
+        match WalletFile::from_config_file(
+            &args.keypair.unwrap()
+        ) {
+            Ok(a) => {
+                keypair = Keypair::from_base58_string(&a.key)
+            }
+
+            Err(e) => {
+                error!("Error reading keypair file: {:?}", e);
+                return;
+            }
+        };
+    }
 
     let cluster_type = if args.dev {
         ClusterType::Devnet

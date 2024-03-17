@@ -9,6 +9,11 @@ pub struct Config {
     pub project_directory: String,
 }
 
+#[derive(Deserialize, Clone, Debug, Serialize)]
+pub struct WalletFile {
+    pub key: String,
+}
+
 #[derive(Deserialize, Serialize, Default, Clone)]
 pub struct ProjectConfig {
     pub name: String,

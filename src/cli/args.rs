@@ -23,6 +23,9 @@ pub struct CliArgs {
     #[arg(long, default_value_t = false)]
     pub verbose: bool,
 
+    /// Custom Keypair (base58) file (ex. wallet.yaml)
+    #[arg(long)]
+    pub keypair: Option<String>
 }
 
 #[derive(Debug, Subcommand)]
