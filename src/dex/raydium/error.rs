@@ -7,10 +7,10 @@ pub enum PoolError {
     GetMarketAuthorityError,
     #[error("failed to build liquidity info")]
     BuildLiquidityInfoError,
-    #[error("failed to get market state")]
-    GetMarketStateError,
-    #[error("failed to get liquidity state")]
-    GetLiquidityStateError,
+    #[error("failed to get market state: {0}")]
+    GetMarketStateError(String),
+    #[error("failed to get liquidity state: {0}")]
+    GetLiquidityStateError(String),
 }
 
 #[derive(Debug, Error)]
@@ -21,6 +21,12 @@ pub enum RequestError {
 
     #[error("Error: {0}")]
     GetMarketStateRequestError(String),
+
+    #[error("Error: {0}")]
+    RpcError(String),
+
+    #[error("account not found, maybe the pool is not opened")]
+    AccountNotFound,
 }
 
 #[derive(Debug, Error)]

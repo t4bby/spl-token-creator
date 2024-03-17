@@ -5,7 +5,6 @@ use bytes::Buf;
 use reqwest::blocking::Response;
 use serde_json::{json, Value};
 use solana_account_decoder::UiAccountEncoding;
-use solana_client::client_error::ClientError;
 use solana_client::rpc_client::RpcClient;
 use solana_client::rpc_config::{RpcAccountInfoConfig, RpcProgramAccountsConfig};
 use solana_client::rpc_filter::{Memcmp, MemcmpEncodedBytes, RpcFilterType};
@@ -171,7 +170,7 @@ impl LiquidityStateLayoutV4 {
                               base_mint: &Pubkey,
                               quote_mint: &Pubkey,
                               cluster_type: ClusterType)
-                              -> Result<LiquidityStateLayoutV4, ClientError> {
+                              -> Result<LiquidityStateLayoutV4, RequestError> {
         match cluster_type {
             ClusterType::Devnet => {
                 Self::get_with_rpc_with_program_id(connection, base_mint, quote_mint, raydium::AMM_PROGRAM_DEV_ID).await
@@ -186,7 +185,7 @@ impl LiquidityStateLayoutV4 {
     }
 
     pub async fn get_with_rpc_with_program_id(connection: &RpcClient, base_mint: &Pubkey,
-                                              quote_mint: &Pubkey, program_id: &str) -> Result<LiquidityStateLayoutV4, ClientError> {
+                                              quote_mint: &Pubkey, program_id: &str) -> Result<LiquidityStateLayoutV4, RequestError> {
 
         // amm_program_id is the address of the AMM program
         let amm_program_id =
@@ -198,10 +197,13 @@ impl LiquidityStateLayoutV4 {
             &amm_program_id,
             markets_v4_config) {
             Ok(acc) => {
-                acc.first().expect("Account not found").clone()
+                if acc.is_empty() {
+                    return Err(RequestError::AccountNotFound)
+                }
+                acc.first().unwrap().clone()
             },
             Err(e) => {
-                return Err(e)
+                return Err(RequestError::RpcError(e.to_string()))
             }
         };
 
@@ -312,7 +314,7 @@ impl MarketStateLayoutV3 {
                               base_mint: &Pubkey,
                               quote_mint: &Pubkey,
                               cluster_type: ClusterType)
-                              -> Result<MarketStateLayoutV3, ClientError> {
+                              -> Result<MarketStateLayoutV3, RequestError> {
         match cluster_type {
             ClusterType::Devnet => {
                 Self::get_with_rpc_with_program_id(connection, base_mint, quote_mint, openbook::SERUM_PROGRAM_DEV_ID).await
@@ -327,17 +329,20 @@ impl MarketStateLayoutV3 {
     }
 
     pub async fn get_with_rpc_with_program_id(connection: &RpcClient,
-                                              base_mint: &Pubkey, quote_mint: &Pubkey, program_id: &str) -> Result<MarketStateLayoutV3, ClientError> {
+                                              base_mint: &Pubkey, quote_mint: &Pubkey, program_id: &str) -> Result<MarketStateLayoutV3, RequestError> {
         let markets_v3_config = Self::get_config(&base_mint, &quote_mint);
 
         let (_, program_account) = match connection.get_program_accounts_with_config(
             &Pubkey::from_str(program_id).unwrap(),
             markets_v3_config) {
             Ok(acc) => {
-                acc.first().expect("Account not found").clone()
+                if acc.is_empty() {
+                    return Err(RequestError::AccountNotFound)
+                }
+                acc.first().unwrap().clone()
             },
             Err(e) => {
-                return Err(e)
+                return Err(RequestError::RpcError(e.to_string()))
             }
         };
 

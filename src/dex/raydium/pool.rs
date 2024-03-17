@@ -124,15 +124,15 @@ impl LiquidityPoolInfo {
 
         let liquidity_state = match liquidity_state {
             Ok(a) => a,
-            Err(_) => {
-                return Err(PoolError::GetLiquidityStateError)
+            Err(e) => {
+                return Err(PoolError::GetLiquidityStateError(e.to_string()))
             }
         };
 
         let market_state = match market_state {
             Ok(a) => a,
-            Err(_) => {
-                return Err(PoolError::GetMarketStateError)
+            Err(e) => {
+                return Err(PoolError::GetMarketStateError(e.to_string()))
             }
         };
 
@@ -198,15 +198,15 @@ impl LiquidityPoolInfo {
 
         let liquidity_state = match liquidity_state {
             Ok(a) => a,
-            Err(_) => {
-                return Err(PoolError::GetLiquidityStateError)
+            Err(e) => {
+                return Err(PoolError::GetLiquidityStateError(e.to_string()))
             }
         };
 
         let market_state = match market_state {
             Ok(a) => a,
-            Err(_) => {
-                return Err(PoolError::GetMarketStateError)
+            Err(e) => {
+                return Err(PoolError::GetMarketStateError(e.to_string()))
             }
         };
 
