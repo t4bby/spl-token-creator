@@ -98,6 +98,7 @@ pub fn swap_instruction(
     instructions
 }
 
+#[allow(deprecated)]
 pub fn get_or_create_token_account(
     rpc_client: &RpcClient,
     payer: &Keypair,
@@ -130,6 +131,7 @@ pub fn get_or_create_token_account(
     token_account
 }
 
+#[allow(deprecated)]
 pub fn buy(
     rpc_client: &RpcClient,
     payer: &WalletInformation,
@@ -199,6 +201,7 @@ pub fn buy(
     }
 }
 
+#[allow(deprecated)]
 pub fn sell(rpc_client: &RpcClient,
             payer: &WalletInformation,
             amount: u64,
@@ -206,6 +209,7 @@ pub fn sell(rpc_client: &RpcClient,
             cluster_type: ClusterType) {
     let wallet = Keypair::from_base58_string(&payer.wallet);
     let mut instructions: Vec<Instruction> = vec![];
+    info!("Selling on wallet: {}", wallet.pubkey().to_string());
 
     let program_id: Pubkey;
     match cluster_type {

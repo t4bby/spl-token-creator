@@ -496,7 +496,6 @@ pub async fn project_sell(
     }
 
     for wallet in wallet_information.iter() {
-        info!("Selling wallet: {:?}", wallet.wallet);
         swap::sell(
             &rpc_client,
             &wallet,
