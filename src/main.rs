@@ -19,7 +19,7 @@ use crate::cli::args::{CliArgs, Commands};
 use crate::cli::config::{Config, ProjectConfig};
 
 
-#[tokio::main]
+#[tokio::main(flavor = "multi_thread", worker_threads = 10)]
 async fn main() {
     let args: CliArgs = CliArgs::parse();
 
