@@ -244,6 +244,8 @@ pub fn create_wsol_account(
     wallet: &Keypair,
     transfer_amount: f64,
 ) -> (Pubkey, Keypair) {
+    info!("Creating WSOL account");
+
     let (instructions, wsol_keypair)
         = create_wsol_account_instruction(
         &wallet.pubkey(),
@@ -259,13 +261,14 @@ pub fn create_wsol_account(
         rpc_client.get_recent_blockhash().unwrap().0
     );
 
+    info!("Sending transaction");
     match rpc_client.send_and_confirm_transaction(&transaction) {
         Ok(s) => {
             info!("WSOL Account: {:?}", wsol_keypair.pubkey());
             info!("WSOL Account Creation Tx: {:?}", s);
         }
         Err(e) => {
-            error!("Error: {:?}", e);
+            panic!("Error: {:?}", e);
         }
     }
 

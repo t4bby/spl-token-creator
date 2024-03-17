@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex};
 use config_file::FromConfigFile;
 use log::{debug, error, info};
 use solana_client::rpc_client::RpcClient;
-use solana_program::native_token::{lamports_to_sol};
+use solana_program::native_token::{lamports_to_sol, sol_to_lamports};
 use solana_program::pubkey::Pubkey;
 use solana_sdk::genesis_config::ClusterType;
 use solana_sdk::signature::{Keypair, Signer};
@@ -640,19 +640,12 @@ pub async fn sell(rpc_client: &RpcClient,
 
     if skip == false {
         if wsol_account_instruction.is_some() {
-            spl::token::create_wsol_account(
+            (wsol_token_account, _) = spl::token::create_wsol_account(
                 &rpc_client,
                 &payer,
                 0.001, // gas fee
             );
         }
-
-        (wsol_token_account, _) = spl::get_token_account(
-            &rpc_client,
-            &payer.pubkey(),
-            &payer.pubkey(),
-            &quote_mint_pub
-        );
     }
 
     let wallet_information = spl::token::get_wallet_token_information(
@@ -694,24 +687,43 @@ pub async fn buy(rpc_client: &RpcClient,
     let quote_mint_pub = Pubkey::from_str(quote_mint).unwrap();
 
     info!("Buying token: {}", base_mint_pub.to_string());
-    let balance = rpc_client.get_balance(&payer.pubkey()).unwrap();
-
     info!("Amount: {:?}", amount);
 
-    let wsol_token_account;
+    let balance = rpc_client.get_balance(&payer.pubkey()).unwrap();
+    info!("Wallet Balance: {:?} SOL", lamports_to_sol(balance));
+
+    let mut wsol_token_account;
     if skip == false {
-        info!("Checking WSOL account");
-        if lamports_to_sol(balance) <= (amount + 0.00011) {
+        if lamports_to_sol(balance) < (amount + 0.00011) {
             error!("Insufficient balance to buy token. Requires at least {} SOL", amount + 0.00011);
             return;
         }
 
-        (wsol_token_account, _) = spl::token::create_wsol_account(
+        (wsol_token_account, _) = spl::get_token_account(
             &rpc_client,
-            &payer,
-            amount + 0.00011,
+            &payer.pubkey(),
+            &payer.pubkey(),
+            &spl_token::native_mint::id()
         );
 
+        let mut balance: u64 = 0u64;
+        let b = rpc_client.get_token_account_balance(&wsol_token_account);
+        if b.is_ok() {
+            let b = b.unwrap();
+            let decimal = b.decimals;
+            balance = (b.ui_amount.unwrap() * 10f64.powf(decimal as f64)) as u64;
+        }
+
+        if balance >= sol_to_lamports(amount + 0.00011) {
+            info!("WSOL Account has sufficient balance to buy token");
+        } else {
+            info!("Insufficient balance to buy token. Creating WSOL account");
+            (wsol_token_account, _) = spl::token::create_wsol_account(
+                &rpc_client,
+                &payer,
+                amount + 0.00011,
+            );
+        }
     } else {
         info!("Skipping WSOL account creation");
         (wsol_token_account, _) = spl::get_token_account(
