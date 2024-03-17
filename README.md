@@ -48,6 +48,7 @@ Commands:
   pool-information  Get Market State
   buy               Buy Token
   sell              Sell Token
+  withdraw          Withdraw all SOL from generated accounts
   project-sell      Sell Project Token
   auto-sell         Auto sell the airdropped token when liquidity pool is added
   help              Print this message or the help of the given subcommand(s)

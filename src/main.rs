@@ -224,6 +224,16 @@ async fn main() {
             ).await;
         },
 
+        Commands::Withdraw { destination } => {
+            cli::withdraw(
+                &rpc_client,
+                &keypair,
+                &project_config,
+                destination
+            ).await;
+
+        },
+
         Commands::Burn {
             percentage, mint, airdrop, single, pay
         } => {

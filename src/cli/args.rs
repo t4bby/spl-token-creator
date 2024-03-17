@@ -92,7 +92,6 @@ pub enum Commands {
         /// This will burn tokens paid by payer
         #[arg(long, default_value_t = false)]
         pay: bool
-
     },
 
     /// Add liquidity
@@ -103,7 +102,6 @@ pub enum Commands {
 
     /// Remove liquidity
     RemoveLiquidity {},
-
 
     /// Get Market State
     PoolInformation {
@@ -158,6 +156,12 @@ pub enum Commands {
         skip: bool,
     },
 
+    /// Withdraw all SOL from generated accounts
+    Withdraw {
+        /// Destination
+        #[arg(short = 'd')]
+        destination: Option<String>,
+    },
 
     /// Sell Project Token
     ProjectSell {
@@ -181,8 +185,6 @@ pub enum Commands {
         #[arg(short = 'i', default_value_t = 1.0)]
         interval: f64
     },
-
-
 
     /// Auto sell the airdropped token when liquidity pool is added
     AutoSell {

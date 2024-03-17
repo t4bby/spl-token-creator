@@ -4,8 +4,9 @@ use log::{debug, error, info};
 use solana_client::rpc_client::{RpcClient};
 use solana_client::rpc_config::RpcSendTransactionConfig;
 use solana_program::instruction::Instruction;
-use solana_program::native_token::{sol_to_lamports};
+use solana_program::native_token::{lamports_to_sol, sol_to_lamports};
 use solana_program::pubkey::Pubkey;
+use solana_sdk::commitment_config::CommitmentLevel;
 use solana_sdk::signature::Keypair;
 use solana_sdk::signer::Signer;
 use solana_sdk::transaction::Transaction;
@@ -37,21 +38,26 @@ pub fn get_wallet_token_information(rpc_client: &RpcClient, wallet_bs58: &str, w
     let wallet = Keypair::from_base58_string(wallet_bs58);
     debug!("Wallet Pubkey: {}", wallet.pubkey().to_string());
 
-    let (token_account, create_token) = spl::get_token_account(
-        rpc_client,
-        &wallet.pubkey(),
-        &wallet.pubkey(),
-        mint
-    );
+    let (mut token_account, mut create_token);
+    if *mint != spl_token::native_mint::id() {
+        (token_account, create_token) = spl::get_token_account(
+            rpc_client,
+            &wallet.pubkey(),
+            &wallet.pubkey(),
+            mint
+        );
 
-    if create_token.is_some() {
-        return WalletInformation {
-            wallet: wallet_bs58.to_string(),
-            wsol_account: *wsol_account_pub,
-            token_account,
-            balance: 0,
-            create_token_account_instruction: None,
-        };
+        if create_token.is_some() {
+            return WalletInformation {
+                wallet: wallet_bs58.to_string(),
+                wsol_account: *wsol_account_pub,
+                token_account,
+                balance: 0,
+                create_token_account_instruction: None,
+            };
+        }
+    } else {
+        token_account = *wsol_account_pub;
     }
 
     let mut balance: u64 = 0u64;
@@ -69,7 +75,10 @@ pub fn get_wallet_token_information(rpc_client: &RpcClient, wallet_bs58: &str, w
         tries += 1;
     }
 
-    debug!("Token account: {:?}", token_account);
+    if *mint != spl_token::native_mint::id() {
+        debug!("Token account: {:?}", token_account);
+    }
+
     debug!("WSOL account: {:?}", wsol_account_pub);
     debug!("Balance: {:?}", balance);
 
@@ -82,7 +91,7 @@ pub fn get_wallet_token_information(rpc_client: &RpcClient, wallet_bs58: &str, w
     }
 }
 
-
+#[allow(deprecated)]
 pub fn create(rpc_client: &RpcClient,
               payer: &Keypair,
               project_config: &ProjectConfig) {
@@ -125,6 +134,7 @@ pub fn create(rpc_client: &RpcClient,
     }
 }
 
+#[allow(deprecated)]
 pub fn airdrop(rpc_client: &RpcClient, payer: &Keypair, project_dir: &str, project_config: &mut ProjectConfig, percent: f64) {
     let token_keypair = Keypair::from_base58_string(&project_config.token_keypair);
     let amount = project_config.mint_amount as f64 * (percent / 100f64);
@@ -191,7 +201,7 @@ pub fn airdrop(rpc_client: &RpcClient, payer: &Keypair, project_dir: &str, proje
             rpc_client.get_recent_blockhash().unwrap().0
         );
 
-        match rpc_client.send_and_confirm_transaction(&transaction,) {
+        match rpc_client.send_and_confirm_transaction(&transaction, ) {
             Ok(s) => {
                 info!("Airdrop Tx: {:?}", s);
             }
@@ -226,7 +236,7 @@ pub fn airdrop(rpc_client: &RpcClient, payer: &Keypair, project_dir: &str, proje
     }
 }
 
-
+#[allow(deprecated)]
 pub fn create_wsol_account(
     rpc_client: &RpcClient,
     wallet: &Keypair,
@@ -297,6 +307,7 @@ pub fn create_wsol_account_instruction(
           initialize_account_instruction], new_keypair)
 }
 
+#[allow(deprecated)]
 pub fn burn(rpc_client: &RpcClient,
             payer: &Keypair,
             burn_account: &Keypair,
@@ -344,3 +355,70 @@ pub fn burn(rpc_client: &RpcClient,
     }
 }
 
+#[allow(deprecated)]
+pub fn send(rpc_client: &RpcClient,
+            destination: &Pubkey,
+            project_config: &ProjectConfig) {
+    let mut wallet_information: Vec<WalletInformation> = vec![];
+
+    for i in 0..project_config.wallets.len() {
+        let wsol_wallet = Keypair::from_base58_string(&project_config.wsol_wallets[i]);
+        wallet_information.push(
+            get_wallet_token_information(
+                &rpc_client,
+                &project_config.wallets[i],
+                &wsol_wallet.pubkey(),
+                &spl_token::native_mint::id(),
+            )
+        );
+    }
+
+    for wallet in wallet_information.iter() {
+        let wallet_keypair = Keypair::from_base58_string(&wallet.wallet);
+        let mut instructions: Vec<Instruction> = vec![];
+
+        instructions.push(
+            spl_token::instruction::close_account(
+                &spl_token::id(),
+                &wallet.wsol_account,
+                &wallet_keypair.pubkey(),
+                &wallet_keypair.pubkey(),
+                &[],
+            ).unwrap()
+        );
+
+        instructions.push(
+            solana_program::system_instruction::transfer(
+                &wallet_keypair.pubkey(),
+                &destination,
+                wallet.balance
+            )
+        );
+
+        let transaction = Transaction::new_signed_with_payer(
+            &instructions,
+            Some(&wallet_keypair.pubkey()),
+            &[&wallet_keypair],
+            rpc_client.get_recent_blockhash().unwrap().0
+        );
+
+        info!("Sending {:?} SOL to {:?} from {:?}",
+            lamports_to_sol(wallet.balance),
+            destination, wallet_keypair.pubkey());
+
+        match rpc_client.send_transaction_with_config(&transaction, RpcSendTransactionConfig {
+            skip_preflight: false,
+            preflight_commitment: Some(CommitmentLevel::Confirmed),
+            encoding: None,
+            max_retries: None,
+            min_context_slot: None,
+        }) {
+            Ok(s) => {
+                info!("Send Tx: {:?}", s);
+            }
+            Err(e) => {
+                panic!("Error: {:?}", e);
+            }
+        }
+    }
+}

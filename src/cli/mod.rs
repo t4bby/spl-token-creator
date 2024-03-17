@@ -324,8 +324,24 @@ pub async fn create_token(
     }
 }
 
+pub async fn withdraw(
+    rpc_client: &RpcClient,
+    payer: &Keypair,
+    project_config: &ProjectConfig,
+    destination: Option<String>
+) {
+    let mut destination_pub = payer.pubkey();
+    if destination.is_some() {
+        destination_pub = Pubkey::from_str(&destination.unwrap()).unwrap();
+    }
+
+    info!("Withdrawing to: {}", destination_pub.to_string());
+
+    spl::token::send(rpc_client, &destination_pub, project_config);
+}
+
 pub async fn airdrop(
-    rpc_client: &solana_client::rpc_client::RpcClient,
+    rpc_client: &RpcClient,
     keypair: &Keypair,
     project_dir: String,
     project_config: &mut ProjectConfig,
@@ -517,7 +533,7 @@ pub async fn auto_sell(
 
     let mut wallet_information: Vec<WalletInformation> = vec![];
     {
-        if project_config.wsol_wallets.len() != project_config.wallets.len()  {
+        if project_config.wsol_wallets.len() != project_config.wallets.len() {
             error!("No WSOL wallet available. Airdrop first");
             return;
         }
@@ -552,10 +568,13 @@ pub async fn auto_sell(
                                                  task_config: &utils::websocket::TaskConfig,
                                                  liquidity_pool_info: &LiquidityPoolInfo,
                                                  cluster_type: ClusterType| {
-        info!("run_task: {:?}", liquidity_pool_info);
-        info!("sample selling");
+        debug!("run_task: {:?}", liquidity_pool_info);
+        info!("Auto Selling");
 
         let connection = RpcClient::new(&task_config.rpc_url);
+
+        // have 2-seconds break from selling because you will drain it so fast
+        std::thread::sleep(std::time::Duration::from_secs_f64(2f64));
 
         for wallet in wallets.iter() {
             info!("Selling wallet: {:?}", wallet.wallet);

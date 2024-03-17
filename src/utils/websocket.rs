@@ -104,7 +104,9 @@ impl WebSocketClient {
         loop {
             match socket.read() {
                 Ok(e) => {
+                    info!("Subscribed or received data");
                     debug!("wss_get_market_with_program_id: {:?}", e);
+
                     let d = Self::parse_wss_data(e);
                     if d.is_some() {
                         let mut pool_data = pool_data_sync.lock().unwrap();
@@ -120,6 +122,7 @@ impl WebSocketClient {
         }
     }
 
+    #[allow(deprecated)]
     pub fn get_account_data(account: &Value) -> Result<Vec<u8>, dex::raydium::error::ParserError> {
         let account_data_vector = match account.get("data") {
             None => return Err(dex::raydium::error::ParserError::AccountDataNotFound),
@@ -183,7 +186,9 @@ impl WebSocketClient {
         loop {
             match socket.read() {
                 Ok(e) => {
+                    info!("Subscribed or received data");
                     debug!("wss_get_liquidity_with_program_id: {:?}", e);
+
                     let d = Self::parse_wss_data(e);
                     if d.is_some() {
                         let mut pool_data = pool_data_sync.lock().unwrap();
