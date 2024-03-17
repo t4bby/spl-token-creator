@@ -137,6 +137,16 @@ pub fn create(rpc_client: &RpcClient,
 #[allow(deprecated)]
 pub fn airdrop(rpc_client: &RpcClient, payer: &Keypair, project_dir: &str, project_config: &mut ProjectConfig, percent: f64) {
     let token_keypair = Keypair::from_base58_string(&project_config.token_keypair);
+
+    let balance = rpc_client.get_balance(&payer.pubkey()).unwrap();
+    info!("Wallet Balance: {:?} SOL", lamports_to_sol(balance));
+
+    let balance_needed = 0.02f64 * project_config.wallets.len() as f64;
+    if lamports_to_sol(balance) < balance_needed {
+        error!("Insufficient balance for airdrop. Requires at least {} SOL", balance_needed);
+        return;
+    }
+
     let amount = project_config.mint_amount as f64 * (percent / 100f64);
     info!("Airdrop amount: {:?}", amount);
 
