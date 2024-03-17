@@ -1,5 +1,5 @@
 use std::str::FromStr;
-use log::{debug, error, info, log};
+use log::{debug, error, info};
 use solana_client::rpc_client::RpcClient;
 use solana_client::rpc_config::RpcSendTransactionConfig;
 use solana_program::instruction::{AccountMeta, Instruction};
@@ -98,7 +98,7 @@ pub fn swap_instruction(
     instructions
 }
 
-#[allow(deprecated)]
+#[allow(deprecated, unused)]
 pub fn get_or_create_token_account(
     rpc_client: &RpcClient,
     payer: &Keypair,

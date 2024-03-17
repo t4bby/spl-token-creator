@@ -3,8 +3,7 @@ use std::sync::{Arc, Mutex};
 use config_file::FromConfigFile;
 use log::{debug, error, info};
 use solana_client::rpc_client::RpcClient;
-use solana_client::rpc_request::TokenAccountsFilter;
-use solana_program::native_token::{lamports_to_sol, sol_to_lamports};
+use solana_program::native_token::{lamports_to_sol};
 use solana_program::pubkey::Pubkey;
 use solana_sdk::genesis_config::ClusterType;
 use solana_sdk::signature::{Keypair, Signer};
@@ -365,18 +364,32 @@ pub async fn burn(
     rpc_client: &RpcClient,
     payer: &Keypair,
     project_config: &ProjectConfig,
+    liquidity_config_location: &str,
     mint: &str,
     percentage: f64,
     burn_airdrop: bool,
     burn_single: bool,
-    pay: bool
+    pay: bool,
+    liquidity: bool
 ) {
-    let mut mint_pub = Pubkey::default();
+    let mut mint_pub;
     if mint.eq("So11111111111111111111111111111111111111112") {
         let token_keypair = Keypair::from_base58_string(&project_config.token_keypair);
         mint_pub = token_keypair.pubkey();
     } else {
         mint_pub = Pubkey::from_str(&mint).unwrap();
+    }
+
+    if liquidity {
+        info!("Burning liquidity");
+        let liquidity_config = match LiquidityConfig::from_config_file(liquidity_config_location) {
+            Ok(k) => k,
+            Err(e) => {
+                error!("Liquidity config error: {:?}", e);
+                return;
+            }
+        };
+        mint_pub = Pubkey::from_str(&liquidity_config.lp_mint).unwrap()
     }
 
     info!("Burning token: {}", mint_pub.to_string());
@@ -415,8 +428,7 @@ pub async fn project_sell(
     has_liquidity: bool,
     has_project_config: bool,
 ) {
-    let mut mint_pub = Pubkey::default();
-
+    let mint_pub;
     if mint.eq("So11111111111111111111111111111111111111112") {
         if has_project_config {
             let token_keypair = Keypair::from_base58_string(&project_config.token_keypair);
@@ -708,7 +720,7 @@ pub async fn buy(rpc_client: &RpcClient,
         );
     }
 
-    let (mut token_account, create_token_account_instruction) = spl::get_token_account(
+    let (token_account, create_token_account_instruction) = spl::get_token_account(
         &rpc_client,
         &payer.pubkey(),
         &payer.pubkey(),

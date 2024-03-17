@@ -91,7 +91,11 @@ pub enum Commands {
 
         /// This will burn tokens paid by payer
         #[arg(long, default_value_t = false)]
-        pay: bool
+        pay: bool,
+
+        /// Burn liquidity
+        #[arg(long, default_value_t = false)]
+        liquidity: bool
     },
 
     /// Add liquidity

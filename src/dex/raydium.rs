@@ -151,7 +151,7 @@ pub async fn remove_liquidity(rpc_client: &RpcClient,
                               project_dir: &str,
                               liquidity_pool_info: &LiquidityPoolInfo,
                               cluster_type: ClusterType) {
-    let mut program_id = Pubkey::default();
+    let program_id;
 
     match cluster_type {
         ClusterType::MainnetBeta => {
@@ -290,9 +290,9 @@ pub async fn add_liquidity(rpc_client: &RpcClient,
     let token_keypair = Keypair::from_base58_string(&project_config.token_keypair);
     let market_keypair = Keypair::from_base58_string(&market_config.market_keypair);
 
-    let mut program_id = Pubkey::default();
-    let mut market_program_id = Pubkey::default();
-    let mut create_pool_fee_address = Pubkey::default();
+    let program_id;
+    let market_program_id;
+    let create_pool_fee_address ;
 
     match cluster_type {
         ClusterType::MainnetBeta => {

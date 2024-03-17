@@ -166,6 +166,7 @@ impl LiquidityStateLayoutV4 {
         }
     }
 
+    #[allow(unused)]
     pub async fn get_with_rpc(connection: &RpcClient,
                               base_mint: &Pubkey,
                               quote_mint: &Pubkey,
@@ -306,6 +307,7 @@ impl MarketStateLayoutV3 {
         }
     }
 
+    #[allow(unused)]
     pub async fn get_with_rpc(connection: &RpcClient,
                               base_mint: &Pubkey,
                               quote_mint: &Pubkey,
@@ -398,6 +400,7 @@ pub struct PoolInfoLayout {
     pub simulate_type: u8,
 }
 
+#[allow(deprecated)]
 pub fn account_data_parser(res: Response) -> Result<Vec<u8>, ParserError> {
     let json_data: Value = serde_json::from_str(&*res.text()
                                                      .expect("Failed to get getProgramAccounts response"))

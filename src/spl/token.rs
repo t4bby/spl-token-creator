@@ -1,5 +1,3 @@
-use std::fmt::format;
-use std::str::FromStr;
 use log::{debug, error, info};
 use solana_client::rpc_client::{RpcClient};
 use solana_client::rpc_config::RpcSendTransactionConfig;
@@ -38,7 +36,7 @@ pub fn get_wallet_token_information(rpc_client: &RpcClient, wallet_bs58: &str, w
     let wallet = Keypair::from_base58_string(wallet_bs58);
     debug!("Wallet Pubkey: {}", wallet.pubkey().to_string());
 
-    let (mut token_account, mut create_token);
+    let (token_account, create_token);
     if *mint != spl_token::native_mint::id() {
         (token_account, create_token) = spl::get_token_account(
             rpc_client,

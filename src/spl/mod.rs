@@ -2,7 +2,7 @@ pub mod token;
 
 use std::str::FromStr;
 use borsh::{BorshDeserialize, BorshSerialize};
-use log::{debug, info};
+use log::debug;
 use mpl_token_metadata::types::DataV2;
 use sha2::{Digest, Sha256};
 use solana_client::rpc_client::{RpcClient};
@@ -135,6 +135,7 @@ pub fn create_token_instruction<U: ToString>(client: &RpcClient,
     return instructions;
 }
 
+#[allow(unused)]
 pub fn get_token_account_unchecked(owner_pubkey: &Pubkey,
                                    payer_pubkey: &Pubkey,
                                    mint_pubkey: &Pubkey) -> (Pubkey, Instruction) {
@@ -228,6 +229,7 @@ pub fn create_initialize_account_instruction(program_id: &Pubkey, mint: &Pubkey,
     Instruction::new_with_borsh(*program_id, &data, metadata)
 }
 
+#[allow(deprecated)]
 pub fn generate_pubkey(from_public_key: &Pubkey, program_id: &Pubkey, project_dir: &str) -> (Pubkey, String) {
     let keypair = Keypair::new();
     keypair.write_to_file(format!("{}/generated-pubkey-{}.json", project_dir, keypair.pubkey().to_string()))

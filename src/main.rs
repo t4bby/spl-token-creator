@@ -237,17 +237,19 @@ async fn main() {
         },
 
         Commands::Burn {
-            percentage, mint, airdrop, single, pay
+            percentage, mint, airdrop, single, pay, liquidity
         } => {
             cli::burn(
                 &rpc_client,
                 &keypair,
                 &project_config,
+                &project_liquidity,
                 &mint,
                 percentage,
                 airdrop,
                 single,
-                pay
+                pay,
+                liquidity
             ).await;
         }
 

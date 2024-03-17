@@ -81,6 +81,7 @@ impl Signers for [&dyn Signer; 6] {
     default_keypairs_impl!();
 }
 
+#[allow(deprecated)]
 pub fn open_market(
     project_dir: &str,
     rpc_client: &RpcClient,
@@ -95,7 +96,7 @@ pub fn open_market(
     let token_keypair = Keypair::from_base58_string(&project_config.token_keypair);
     let mut tx1: Vec<Instruction> = vec![];
 
-    let mut program_id_str: &str;
+    let program_id_str: &str;
     match cluster_type {
         ClusterType::MainnetBeta => {
             program_id_str = SERUM_PROGRAM_ID;

@@ -3,7 +3,6 @@ use std::sync::{Arc, Mutex};
 use borsh::BorshDeserialize;
 use log::{debug, error, info};
 use serde_json::{json, Value};
-use solana_client::rpc_client::RpcClient;
 use solana_program::pubkey::Pubkey;
 use solana_sdk::genesis_config::ClusterType;
 use tungstenite::Message;

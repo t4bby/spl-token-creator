@@ -32,8 +32,8 @@ pub struct LiquidityPoolInfo {
 impl LiquidityPoolInfo {
     pub fn build(liquidity_state: LiquidityStateLayoutV4, market_state: MarketStateLayoutV3, cluster_type: ClusterType)
                  -> Result<LiquidityPoolInfo, PoolError> {
-        let mut amm_program_id = Pubkey::default();
-        let mut serum_program_id = Pubkey::default();
+        let amm_program_id;
+        let serum_program_id;
 
         match cluster_type {
             ClusterType::MainnetBeta => {
@@ -276,6 +276,7 @@ impl LiquidityPoolInfo {
         )
     }
 
+    #[allow(unused)]
     pub fn get_associated_lp_vault(amm_program_id: Pubkey, market_id: Pubkey) -> (Pubkey, u8) {
         Pubkey::find_program_address(
             &[
@@ -298,6 +299,7 @@ impl LiquidityPoolInfo {
         )
     }
 
+    #[allow(dead_code)]
     pub fn get_associated_withdraw_queue(amm_program_id: Pubkey, market_id: Pubkey) -> (Pubkey, u8) {
         Pubkey::find_program_address(
             &[
