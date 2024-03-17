@@ -4,7 +4,7 @@ pub mod pool;
 pub mod swap;
 
 use std::str::FromStr;
-use log::info;
+use log::{error, info};
 use solana_client::rpc_client::RpcClient;
 use solana_client::rpc_config::RpcSendTransactionConfig;
 use solana_program::instruction::{AccountMeta, Instruction};
@@ -262,17 +262,17 @@ pub async fn remove_liquidity(rpc_client: &RpcClient,
     );
 
     match rpc_client.send_transaction_with_config(&transaction, RpcSendTransactionConfig {
-        skip_preflight: true,
+        skip_preflight: false,
         preflight_commitment: Some(CommitmentLevel::Finalized),
         encoding: None,
         max_retries: None,
         min_context_slot: None,
     }) {
         Ok(s) => {
-            info!("Tx: {:?}", s);
+            info!("Liquidity Remove Tx: {:?}", s);
         }
         Err(e) => {
-            panic!("Error: {:?}", e);
+            error!("Error: {:?}", e);
         }
     }
 }
@@ -450,10 +450,10 @@ pub async fn add_liquidity(rpc_client: &RpcClient,
         min_context_slot: None,
     }) {
         Ok(s) => {
-            info!("Tx: {:?}", s);
+            info!("Add Liquidity Tx: {:?}", s);
         }
         Err(e) => {
-            panic!("Error: {:?}", e);
+            error!("Error: {:?}", e);
         }
     }
 }
