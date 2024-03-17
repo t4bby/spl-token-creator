@@ -56,9 +56,7 @@ pub async fn remove_liquidity(
     rpc_client: &RpcClient,
     keypair: &Keypair,
     project_dir: String,
-    project_config: &ProjectConfig,
     project_market: String,
-    project_liquidity: String,
     cluster_type: ClusterType,
     has_market: bool,
     has_liquidity: bool
@@ -73,7 +71,6 @@ pub async fn remove_liquidity(
         return;
     }
 
-    // load market config
     let market_config: MarketConfig = match MarketConfig::from_config_file(&project_market) {
         Ok(c) => c,
         Err(e) => {
@@ -82,21 +79,18 @@ pub async fn remove_liquidity(
         }
     };
 
-    let mut liquidity_config: LiquidityConfig = match LiquidityConfig::from_config_file(&project_liquidity) {
-        Ok(c) => c,
-        Err(e) => {
-            error!("Error reading liquidity config file: {:?}", e);
-            return;
-        }
-    };
+    let pool_info = LiquidityPoolInfo::build_with_rpc(
+        &rpc_client,
+        &market_config.base_mint,
+        &market_config.quote_mint,
+        cluster_type
+    ).await.unwrap();
 
     info!("Removing liquidity");
     raydium::remove_liquidity(&rpc_client,
                               &keypair,
                               &project_dir,
-                              &project_config,
-                              &market_config,
-                              &mut liquidity_config,
+                              &pool_info,
                               cluster_type).await;
 }
 
@@ -158,19 +152,14 @@ pub async fn add_liquidity(
 
 
 pub async fn get_pool_information(
-    config: &config::Config,
-    project_config: &ProjectConfig,
+    config: &Config,
     mint: &str,
     quote_mint: &str,
     cluster_type: ClusterType
 ) {
-    let token_keypair = Keypair::from_base58_string(&project_config.token_keypair);
-    let mut mint_pub = Pubkey::from_str(&mint).unwrap();
+    let mint_pub = Pubkey::from_str(&mint).unwrap();
     let quote_mint_pub = Pubkey::from_str(&quote_mint).unwrap();
 
-    if mint.eq("So11111111111111111111111111111111111111112") {
-        mint_pub = token_keypair.pubkey();
-    }
 
     info!("Base Mint: {:?}", mint_pub);
     info!("Quote Mint: {:?}", quote_mint_pub);
@@ -211,7 +200,7 @@ pub async fn get_pool_information(
         }
     };
 
-    info!("pool_info: {:?}", pool_info.0);
+    info!("pool_info: {:?}", pool_info);
 }
 
 pub async fn create_token(

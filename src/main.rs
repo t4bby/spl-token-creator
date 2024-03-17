@@ -55,6 +55,9 @@ async fn main() {
             Commands::Sell { .. } => {
                 project_empty = true;
             },
+            Commands::PoolInformation { .. } => {
+                project_empty = true;
+            },
             _ => {}
         }
     }
@@ -102,6 +105,16 @@ async fn main() {
                     &quote_mint,
                     percent,
                     skip,
+                    cluster_type
+                ).await;
+                return;
+            }
+
+            Commands::PoolInformation { ref mint, ref quote_mint } => {
+                cli::get_pool_information(
+                    &config,
+                    &mint,
+                    &quote_mint,
                     cluster_type
                 ).await;
                 return;
@@ -201,16 +214,6 @@ async fn main() {
     }
 
     match args.command {
-        Commands::PoolInformation { mint, quote_mint } => {
-            cli::get_pool_information(
-                &config,
-                &project_config,
-                &mint,
-                &quote_mint,
-                cluster_type
-            ).await;
-        }
-
         Commands::Airdrop {
             percentage
         } => {
@@ -231,13 +234,11 @@ async fn main() {
                 &project_config,
                 destination
             ).await;
-
         },
 
         Commands::Burn {
             percentage, mint, airdrop, single, pay
         } => {
-
             cli::burn(
                 &rpc_client,
                 &keypair,
@@ -305,9 +306,7 @@ async fn main() {
                 &rpc_client,
                 &keypair,
                 project_dir,
-                &project_config,
                 project_market,
-                project_liquidity,
                 cluster_type,
                 has_market,
                 has_liquidity

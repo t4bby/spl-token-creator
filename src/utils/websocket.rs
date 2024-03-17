@@ -232,7 +232,7 @@ impl WebSocketClient {
                 let pool_info =
                     LiquidityPoolInfo::build(pool_data.liquidity_state.unwrap(), pool_data.market_state.unwrap(), cluster_type)
                         .expect("failed building liquidity pool info");
-                f(args, &task_config, &pool_info.0, cluster_type);
+                f(args, &task_config, &pool_info, cluster_type);
                 break;
             }
         }

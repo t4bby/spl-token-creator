@@ -145,29 +145,20 @@ pub fn make_create_pool_v4_instruction(program_id: &Pubkey,
     Instruction::new_with_borsh(*program_id, &data, meta_data)
 }
 
+#[allow(deprecated)]
 pub async fn remove_liquidity(rpc_client: &RpcClient,
                               payer: &Keypair,
                               project_dir: &str,
-                              project_config: &ProjectConfig,
-                              market_config: &MarketConfig,
-                              liquidity_config: &mut LiquidityConfig,
+                              liquidity_pool_info: &LiquidityPoolInfo,
                               cluster_type: ClusterType) {
-//    let token_keypair = Keypair::from_base58_string(&project_config.token_keypair);
-    let market_keypair = Keypair::from_base58_string(&market_config.market_keypair);
-
-    let wsol_pub = &spl_token::native_mint::id();
-
     let mut program_id = Pubkey::default();
-    let mut market_program_id = Pubkey::default();
 
     match cluster_type {
         ClusterType::MainnetBeta => {
             program_id = Pubkey::from_str(AMM_PROGRAM_ID).unwrap();
-            market_program_id = Pubkey::from_str(dex::openbook::SERUM_PROGRAM_ID).unwrap();
         }
         ClusterType::Devnet => {
             program_id = Pubkey::from_str(AMM_PROGRAM_DEV_ID).unwrap();
-            market_program_id = Pubkey::from_str(dex::openbook::SERUM_PROGRAM_DEV_ID).unwrap();
         }
         _ => {
             unimplemented!()
@@ -198,16 +189,24 @@ pub async fn remove_liquidity(rpc_client: &RpcClient,
     instructions.push(
         spl::create_initialize_account_instruction(
             &spl_token::id(),
-            &wsol_pub,
+            &spl_token::native_mint::id(),
             &new_token_account,
             &payer.pubkey(),
         )
     );
 
+    let (user_coin_token_account, _) = spl::get_token_account(
+        rpc_client,
+        &payer.pubkey(),
+        &payer.pubkey(),
+        &liquidity_pool_info.liquidity_state.base_mint
+    );
+
+
     let (lp_token_account, _) = spl::get_token_account(rpc_client,
                                                        &payer.pubkey(),
                                                        &payer.pubkey(),
-                                                       &Pubkey::from_str(&liquidity_config.lp_mint).unwrap());
+                                                       &liquidity_pool_info.lp_mint);
 
     let mut balance: u64 = 0u64;
     let b = rpc_client.get_token_account_balance(&lp_token_account);
@@ -217,63 +216,31 @@ pub async fn remove_liquidity(rpc_client: &RpcClient,
         balance = (b.ui_amount.unwrap() * 10f64.powf(decimal as f64)) as u64;
     }
 
-    let (amm_id, _) = LiquidityPoolInfo::get_associated_id(program_id,
-                                                           market_keypair.pubkey());
-
-    let (amm_authority, nonce) = LiquidityPoolInfo::get_associated_authority(program_id);
-
-    let (amm_open_orders, _) = LiquidityPoolInfo::get_associated_open_orders(program_id,
-                                                                             market_keypair.pubkey());
-
-    let (amm_target_orders, _) = LiquidityPoolInfo::get_associated_target_orders(program_id,
-                                                                                 market_keypair.pubkey());
-
-    let (lp_mint, _) = LiquidityPoolInfo::get_associated_lp_mint(program_id,
-                                                                 market_keypair.pubkey());
-
-    let (coin_vault, _) = LiquidityPoolInfo::get_associated_base_vault(program_id,
-                                                                       market_keypair.pubkey());
-
-    let (pc_vault, _) = LiquidityPoolInfo::get_associated_quote_vault(program_id,
-                                                                      market_keypair.pubkey());
-
-    let (withdraw_queue, _) = LiquidityPoolInfo::get_associated_withdraw_queue(program_id, market_keypair.pubkey());
-
-    let market_coin_vault = Keypair::from_base58_string(&market_config.base_vault_keypair);
-    let market_pc_vault = Keypair::from_base58_string(&market_config.quote_vault_keypair);
-
-    let market_authority = LiquidityPoolInfo::get_market_authority(&market_program_id,
-                                                                   &market_keypair.pubkey());
-
-    let market_event_queue = Keypair::from_base58_string(&market_config.event_keypair);
-    let market_bids = Keypair::from_base58_string(&market_config.bids_keypair);
-    let market_asks = Keypair::from_base58_string(&market_config.asks_keypair);
-
     instructions.push(
         make_remove_liquidity_instruction(
             &program_id,
             &lp_token_account,
-            &Pubkey::from_str(&liquidity_config.coin_vault).unwrap(),
-            &Pubkey::from_str(&liquidity_config.pc_vault).unwrap(),
+            &user_coin_token_account,
+            &new_token_account,
             &payer.pubkey(),
             balance,
-            &amm_id,
-            &amm_authority,
-            &amm_open_orders,
-            &amm_target_orders,
-            &lp_mint,
-            &coin_vault,
-            &pc_vault,
-            &withdraw_queue,
-            &Pubkey::from_str("11111111111111111111111111111111").unwrap(),
-            &market_program_id,
-            &market_keypair.pubkey(),
-            &market_coin_vault.pubkey(),
-            &market_pc_vault.pubkey(),
-            &market_authority.unwrap(),
-            &market_event_queue.pubkey(),
-            &market_bids.pubkey(),
-            &market_asks.pubkey(),
+            &liquidity_pool_info.id,
+            &liquidity_pool_info.authority,
+            &liquidity_pool_info.open_orders,
+            &liquidity_pool_info.target_orders,
+            &liquidity_pool_info.lp_mint,
+            &liquidity_pool_info.base_vault,
+            &liquidity_pool_info.quote_vault,
+            &liquidity_pool_info.liquidity_state.withdraw_queue,
+            &liquidity_pool_info.liquidity_state.lp_vault,
+            &liquidity_pool_info.market_program_id,
+            &liquidity_pool_info.market_id,
+            &liquidity_pool_info.market_base_vault,
+            &liquidity_pool_info.market_quote_vault,
+            &liquidity_pool_info.market_authority,
+            &liquidity_pool_info.event_queue,
+            &liquidity_pool_info.bids,
+            &liquidity_pool_info.asks,
         )
     );
 
@@ -296,7 +263,7 @@ pub async fn remove_liquidity(rpc_client: &RpcClient,
 
     match rpc_client.send_transaction_with_config(&transaction, RpcSendTransactionConfig {
         skip_preflight: true,
-        preflight_commitment: None,
+        preflight_commitment: Some(CommitmentLevel::Finalized),
         encoding: None,
         max_retries: None,
         min_context_slot: None,
@@ -310,6 +277,7 @@ pub async fn remove_liquidity(rpc_client: &RpcClient,
     }
 }
 
+#[allow(deprecated)]
 pub async fn add_liquidity(rpc_client: &RpcClient,
                            payer: &Keypair,
                            project_dir: &str,

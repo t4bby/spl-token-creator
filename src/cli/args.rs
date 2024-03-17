@@ -106,7 +106,7 @@ pub enum Commands {
     /// Get Market State
     PoolInformation {
         /// Token Mint
-        #[arg(short = 'm', default_value = "So11111111111111111111111111111111111111112")]
+        #[arg(short = 'm')]
         mint: String,
 
         /// Quote Mint

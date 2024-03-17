@@ -24,11 +24,14 @@ pub struct LiquidityPoolInfo {
     pub market_quote_vault: Pubkey,
     pub market_authority: Pubkey,
     pub lp_mint: Pubkey,
+    // optional
+    pub liquidity_state: LiquidityStateLayoutV4,
+    pub market_state: MarketStateLayoutV3,
 }
 
 impl LiquidityPoolInfo {
     pub fn build(liquidity_state: LiquidityStateLayoutV4, market_state: MarketStateLayoutV3, cluster_type: ClusterType)
-                 -> Result<(LiquidityPoolInfo, LiquidityStateLayoutV4, MarketStateLayoutV3), PoolError> {
+                 -> Result<LiquidityPoolInfo, PoolError> {
         let mut amm_program_id = Pubkey::default();
         let mut serum_program_id = Pubkey::default();
 
@@ -46,7 +49,7 @@ impl LiquidityPoolInfo {
             }
         }
 
-        Ok((LiquidityPoolInfo {
+        Ok(LiquidityPoolInfo {
             id: Self::get_associated_id(amm_program_id, liquidity_state.market_id).0,
             authority: Self::get_associated_authority(amm_program_id).0,
             open_orders: liquidity_state.open_orders,
@@ -68,7 +71,9 @@ impl LiquidityPoolInfo {
                 }
             },
             lp_mint: liquidity_state.lp_mint,
-        }, liquidity_state, market_state))
+            liquidity_state,
+            market_state,
+        })
     }
     pub async fn build_with_rpc(
         connection: &RpcClient,
@@ -137,7 +142,7 @@ impl LiquidityPoolInfo {
                 market_state,
                 cluster_type
             ) {
-                Ok(a) => a.0,
+                Ok(a) => a,
                 Err(_) => {
                     return Err(PoolError::BuildLiquidityInfoError)
                 }
@@ -211,7 +216,7 @@ impl LiquidityPoolInfo {
                 market_state,
                 cluster_type
             ) {
-                Ok(a) => a.0,
+                Ok(a) => a,
                 Err(_) => {
                     return Err(PoolError::BuildLiquidityInfoError)
                 }
