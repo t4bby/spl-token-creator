@@ -144,9 +144,7 @@ async fn main() {
 
                 io::stdin().read_line(&mut description_file_path)
                            .expect("Invalid Input");
-
                 description_file_path = description_file_path.trim().to_string();
-                println!("Description File: {:?}", description_file_path);
 
                 let contents = std::fs::read_to_string(description_file_path)
                     .expect("Should have been able to read the file");
@@ -165,9 +163,7 @@ async fn main() {
                 println!("Project Directory: {}", project_dir);
 
                 match std::fs::create_dir(project_dir) {
-                    Ok(_) => {
-                        info!("Project directory created");
-                    }
+                    Ok(_) => {}
                     Err(_) => {
                         error!("Project directory already exists");
                         return;
@@ -193,6 +189,7 @@ async fn main() {
                     serde_yaml::to_string(&project_config).unwrap()
                 ).expect("Failed to write project config file");
 
+                println!();
                 println!("NOTE: The icon ({}) you've added should be inside {}/{}",
                          icon.clone(),
                          config.project_directory,
