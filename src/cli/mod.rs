@@ -242,7 +242,7 @@ pub async fn create_token(
 
     let balance = rpc_client.get_balance(&keypair.pubkey()).unwrap();
     if balance <= sol_to_lamports(0.2) {
-        error!("Insufficient balance to create token. Requires at least 0.2 SOL");
+        error!("Insufficient balance to create token. Requires at least 0.25 SOL");
         return;
     }
 
