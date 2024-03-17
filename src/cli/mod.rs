@@ -696,22 +696,21 @@ pub async fn buy(rpc_client: &RpcClient,
     info!("Buying token: {}", base_mint_pub.to_string());
     info!("Amount: {:?}", amount);
 
-    let (mut wsol_token_account, wsol_account_instruction) = spl::get_token_account(
-        &rpc_client,
-        &payer.pubkey(),
-        &payer.pubkey(),
-        &spl_token::native_mint::id()
-    );
-
+    let wsol_token_account;
     if skip == false {
-        if wsol_account_instruction.is_some() {
-            spl::token::create_wsol_account(
-                &rpc_client,
-                &payer,
-                amount + 0.00011,
-            );
-        }
+        spl::token::create_wsol_account(
+            &rpc_client,
+            &payer,
+            amount + 0.00011,
+        );
 
+        (wsol_token_account, _) = spl::get_token_account(
+            &rpc_client,
+            &payer.pubkey(),
+            &payer.pubkey(),
+            &spl_token::native_mint::id()
+        );
+    } else {
         (wsol_token_account, _) = spl::get_token_account(
             &rpc_client,
             &payer.pubkey(),
@@ -775,8 +774,6 @@ pub async fn buy(rpc_client: &RpcClient,
                     liquidity_pool_info,
                     cluster_type
                 );
-
-                std::thread::sleep(std::time::Duration::from_secs_f64(task_config.sell_interval));
             }
         }, vec![wallet_information.clone()],
                                                     task_config,
