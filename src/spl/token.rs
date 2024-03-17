@@ -259,16 +259,10 @@ pub fn create_wsol_account(
         rpc_client.get_recent_blockhash().unwrap().0
     );
 
-    match rpc_client.send_transaction_with_config(&transaction, RpcSendTransactionConfig {
-        skip_preflight: false,
-        preflight_commitment: Some(CommitmentLevel::Finalized),
-        encoding: None,
-        max_retries: None,
-        min_context_slot: None,
-    }) {
+    match rpc_client.send_and_confirm_transaction(&transaction) {
         Ok(s) => {
             info!("WSOL Account: {:?}", wsol_keypair.pubkey());
-            info!("Tx: {:?}", s);
+            info!("WSOL Account Creation Tx: {:?}", s);
         }
         Err(e) => {
             error!("Error: {:?}", e);

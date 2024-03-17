@@ -706,18 +706,12 @@ pub async fn buy(rpc_client: &RpcClient,
             return;
         }
 
-        spl::token::create_wsol_account(
+        (wsol_token_account, _) = spl::token::create_wsol_account(
             &rpc_client,
             &payer,
             amount + 0.00011,
         );
 
-        (wsol_token_account, _) = spl::get_token_account(
-            &rpc_client,
-            &payer.pubkey(),
-            &payer.pubkey(),
-            &spl_token::native_mint::id()
-        );
     } else {
         info!("Skipping WSOL account creation");
         (wsol_token_account, _) = spl::get_token_account(
@@ -779,10 +773,9 @@ pub async fn buy(rpc_client: &RpcClient,
 
             let connection = RpcClient::new(&task_config.rpc_url);
             for wallet in wallets.iter() {
-                info!("Buying wallet: {:?}", wallet.wallet);
                 swap::buy(
                     &connection,
-                    &wallet_information,
+                    &wallet,
                     task_config.buy_amount,
                     liquidity_pool_info,
                     cluster_type
