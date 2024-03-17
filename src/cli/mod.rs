@@ -694,10 +694,18 @@ pub async fn buy(rpc_client: &RpcClient,
     let quote_mint_pub = Pubkey::from_str(quote_mint).unwrap();
 
     info!("Buying token: {}", base_mint_pub.to_string());
+    let balance = rpc_client.get_balance(&payer.pubkey()).unwrap();
+
     info!("Amount: {:?}", amount);
 
     let wsol_token_account;
     if skip == false {
+        info!("Checking WSOL account");
+        if lamports_to_sol(balance) <= (amount + 0.00011) {
+            error!("Insufficient balance to buy token. Requires at least {} SOL", amount + 0.00011);
+            return;
+        }
+
         spl::token::create_wsol_account(
             &rpc_client,
             &payer,
@@ -711,6 +719,7 @@ pub async fn buy(rpc_client: &RpcClient,
             &spl_token::native_mint::id()
         );
     } else {
+        info!("Skipping WSOL account creation");
         (wsol_token_account, _) = spl::get_token_account(
             &rpc_client,
             &payer.pubkey(),
@@ -725,6 +734,10 @@ pub async fn buy(rpc_client: &RpcClient,
         &payer.pubkey(),
         &base_mint_pub
     );
+
+    info!("Token Account: {}", token_account.to_string());
+    info!("WSOL Token Account: {}", wsol_token_account.to_string());
+    info!("Will Create New Token ATA: {}", create_token_account_instruction.is_some());
 
     let wallet_information = WalletInformation {
         wallet: payer.to_base58_string(),

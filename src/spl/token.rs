@@ -260,8 +260,8 @@ pub fn create_wsol_account(
     );
 
     match rpc_client.send_transaction_with_config(&transaction, RpcSendTransactionConfig {
-        skip_preflight: true,
-        preflight_commitment: None,
+        skip_preflight: false,
+        preflight_commitment: Some(CommitmentLevel::Finalized),
         encoding: None,
         max_retries: None,
         min_context_slot: None,
