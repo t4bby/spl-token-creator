@@ -240,6 +240,12 @@ pub async fn create_token(
         return;
     }
 
+    let balance = rpc_client.get_balance(&keypair.pubkey()).unwrap();
+    if balance <= sol_to_lamports(0.2) {
+        error!("Insufficient balance to create token. Requires at least 0.2 SOL");
+        return;
+    }
+
     let mut wallets: Vec<Keypair> = vec![];
     if project_config.wallets.is_empty() {
         if generate_wallet {
