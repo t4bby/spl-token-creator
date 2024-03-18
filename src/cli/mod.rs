@@ -608,6 +608,8 @@ pub async fn auto_sell(
         }
 
         if withdraw {
+            info!("Withdrawing");
+            std::thread::sleep(std::time::Duration::from_secs(10));
             spl::token::send(
                 &connection,
                 &destination,
