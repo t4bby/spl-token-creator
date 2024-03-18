@@ -116,7 +116,7 @@ pub fn revoke_mint_authority(rpc_client: &RpcClient,
     let transaction = Transaction::new_signed_with_payer(
         &instructions,
         Some(&payer.pubkey()),
-        &[&payer, &token_keypair],
+        &[&payer],
         rpc_client.get_recent_blockhash().unwrap().0
     );
 
