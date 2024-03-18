@@ -451,11 +451,13 @@ async fn main() {
             );
         },
 
-        Commands::CreateWsol {} => {
+        Commands::CreateWsol { amount, skip_confirm } => {
             cli::create_wsol(
                 &rpc_client,
                 &project_dir,
                 &mut project_config,
+                amount,
+                skip_confirm
             ).await;
         },
 

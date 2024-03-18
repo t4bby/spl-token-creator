@@ -363,7 +363,14 @@ pub fn create_wsol_account(
             }
         }
     } else {
-        match rpc_client.send_and_confirm_transaction(&transaction) {
+        match rpc_client.send_transaction_with_config(&transaction,
+        RpcSendTransactionConfig {
+            skip_preflight: false,
+            preflight_commitment: Some(CommitmentLevel::Confirmed),
+            encoding: None,
+            max_retries: None,
+            min_context_slot: None,
+        }) {
             Ok(s) => {
                 info!("WSOL Account: {:?}", wsol_keypair.pubkey());
                 info!("WSOL Account Creation Tx: {:?}", s);
@@ -404,8 +411,8 @@ pub fn create_wsol_account_instruction(
         &owner,
     ).unwrap();
 
-    (vec![solana_sdk::compute_budget::ComputeBudgetInstruction::set_compute_unit_price(44684),
-          solana_sdk::compute_budget::ComputeBudgetInstruction::set_compute_unit_limit(600000),
+    (vec![solana_sdk::compute_budget::ComputeBudgetInstruction::set_compute_unit_price(100000),
+          solana_sdk::compute_budget::ComputeBudgetInstruction::set_compute_unit_limit(200000),
           create_account_instruction,
           transfer_instruction,
           initialize_account_instruction], new_keypair)

@@ -164,7 +164,15 @@ pub enum Commands {
     RemoveLiquidity {},
 
     /// Create WSOL Account
-    CreateWsol {},
+    CreateWsol {
+        /// Sol to be transferred as WSOL
+        #[arg(short = 's', default_value_t = 0.015)]
+        amount: f64,
+
+        /// Skip WSOL Account confirmation
+        #[arg(long, default_value_t = false)]
+        skip_confirm: bool,
+    },
 
     /// Get Market State
     PoolInformation {

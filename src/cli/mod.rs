@@ -909,7 +909,9 @@ pub async fn revoke_mint_authority(rpc_client: &RpcClient, payer: &Keypair, proj
     spl::token::revoke_mint_authority(&rpc_client, &payer, &project_config);
 }
 
-pub async fn create_wsol(rpc_client: &RpcClient, project_dir: &str, project_config: &mut ProjectConfig) {
+pub async fn create_wsol(rpc_client: &RpcClient, project_dir: &str,
+                         project_config: &mut ProjectConfig,
+                         amount: f64, skip_confirmation: bool) {
     if project_config.wsol_wallets.len() == 0 {
         for wallet in project_config.wallets.iter() {
             let wallet = Keypair::from_base58_string(wallet);
@@ -917,8 +919,8 @@ pub async fn create_wsol(rpc_client: &RpcClient, project_dir: &str, project_conf
             let (_, wsol_keypair) = create_wsol_account(
                 &rpc_client,
                 &wallet,
-                0.015,
-                true
+                amount,
+                !skip_confirmation
             );
             project_config.wsol_wallets.push(wsol_keypair.to_base58_string());
         }
