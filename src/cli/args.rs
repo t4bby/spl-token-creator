@@ -243,6 +243,13 @@ pub enum Commands {
         interval: f64
     },
 
+    /// Monitor Price Change
+    Monitor {
+        /// Token Mint
+        #[arg(short = 'm')]
+        mint: String
+    },
+
     /// Auto sell the airdropped token when liquidity pool is added
     AutoSell {
         /// Token Mint
@@ -265,11 +272,11 @@ pub enum Commands {
         #[arg(short = 'p', default_value_t = 100.0)]
         percentage: f64,
 
-        /// Sell percentage
+        /// Withdraw after selling
         #[arg(long, default_value_t = false)]
         withdraw: bool,
 
-        /// Sell percentage
+        /// Withdraw destination
         #[arg(long)]
         destination: Option<String>,
     }

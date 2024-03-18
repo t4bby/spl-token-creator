@@ -12,12 +12,13 @@ use std::io::Write;
 use std::path::Path;
 use std::str::FromStr;
 use clap::Parser;
-use log::{error, info};
+use log::{debug, error, info};
 use solana_client::rpc_client::RpcClient;
 use solana_sdk::signature::{Keypair, Signer};
 use config_file::{FromConfigFile};
 use solana_program::pubkey::Pubkey;
 use solana_sdk::genesis_config::ClusterType;
+use crate::api::dexscreener::DexScreener;
 use crate::cli::args::{CliArgs, Commands};
 use crate::cli::config::{Config, ProjectConfig, WalletFile};
 
@@ -68,6 +69,9 @@ async fn main() {
             Commands::GenerateProject { .. } => {
                 project_empty = true;
             },
+            Commands::Monitor { .. } => {
+                project_empty = true;
+            },
             _ => {}
         }
     }
@@ -107,6 +111,39 @@ async fn main() {
 
     if project_empty {
         match args.command {
+            Commands::Monitor { ref mint } => {
+                tokio::task::block_in_place(|| {
+                    let dex_screener = DexScreener::new();
+                    let mut token_price = 0.0;
+                    let mut initial_price = 0.0;
+
+                    info!("Initial Price {} SOL", initial_price);
+                    info!("Waiting for price change");
+                    loop {
+                        let k = dex_screener.get_token_price(&mint);
+                        match k {
+                            Ok(k) => {
+                                if token_price < k || token_price > k {
+                                    if initial_price == 0f64.powi(9) {
+                                        info!("Took Initial Price");
+                                        initial_price = k;
+                                    }
+
+                                    token_price = k;
+                                    info!("Price changed!");
+                                    info!("1 Token = {:.9} SOL Price", token_price);
+                                    info!("Profit: {}", token_price - initial_price);
+                                    info!("Percent Increase: {}", ((token_price - initial_price) / initial_price) * 100f64);
+                                }
+                            }
+                            Err(e) => {
+                                debug!("Error: {}", e);
+                            }
+                        }
+                        std::thread::sleep(std::time::Duration::from_millis(1000 / (300 / 60)));
+                    }
+                });
+            },
             Commands::GenerateProject { name, symbol, icon, description, mint, decimal } => {
                 println!("Generating project files");
 

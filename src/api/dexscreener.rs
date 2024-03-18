@@ -46,7 +46,13 @@ impl DexScreener {
             }
         };
 
-        let pairs: Vec<Pair> = token_response.pairs.unwrap();
+        let pairs: Vec<Pair> = token_response.pairs.unwrap_or_else(|| {
+            vec![]
+        });
+
+        if pairs.len() == 0 {
+            return Err(DexScreenerError::InvalidPair);
+        }
 
         Ok(pairs[0].price_native.parse::<f64>().unwrap())
     }
