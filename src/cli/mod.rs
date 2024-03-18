@@ -306,6 +306,7 @@ pub async fn create_token(
         project_config.metadata_uri = format!("https://{}.ipfs.nftstorage.link", metadata_cid);
     }
 
+    spl::token::create(&rpc_client, &keypair, &project_config);
     match std::fs::write(&project_config_file, serde_yaml::to_string(&project_config).unwrap()) {
         Ok(_) => {
             info!("Project config updated");
@@ -316,11 +317,11 @@ pub async fn create_token(
         }
     }
 
-    spl::token::create(&rpc_client, &keypair, &project_config);
     if airdrop {
         info!("Airdropping to wallets");
         spl::token::airdrop(&rpc_client, &keypair, &project_dir, project_config, percentage, false);
     }
+
 }
 
 pub async fn withdraw(

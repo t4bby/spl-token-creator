@@ -439,6 +439,7 @@ pub fn send(rpc_client: &RpcClient,
 
         let mut balance =  wallet.balance.clone();
         if balance != 0u64 {
+            balance += sol_to_lamports(0.006);
             instructions.push(
                 spl_token::instruction::close_account(
                     &spl_token::id(),
