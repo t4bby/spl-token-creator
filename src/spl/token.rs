@@ -240,6 +240,40 @@ pub fn airdrop(rpc_client: &RpcClient, payer: &Keypair, project_dir: &str,
     }
 }
 
+
+#[allow(deprecated)]
+pub fn close_wsol_account(
+    rpc_client: &RpcClient,
+    wallet: &Keypair,
+    wsol_account: &Pubkey,
+) {
+    let instructions: Vec<Instruction> = vec![
+        spl_token::instruction::close_account(
+            &spl_token::id(),
+            &wsol_account,
+            &wallet.pubkey(),
+            &wallet.pubkey(),
+            &[],
+        ).unwrap()
+    ];
+
+    let transaction = Transaction::new_signed_with_payer(
+        &instructions,
+        Some(&wallet.pubkey()),
+        &[&wallet],
+        rpc_client.get_recent_blockhash().unwrap().0
+    );
+
+    match rpc_client.send_and_confirm_transaction(&transaction) {
+        Ok(s) => {
+            info!("Close WSOL Account Tx: {:?}", s);
+        }
+        Err(e) => {
+            panic!("Error: {:?}", e);
+        }
+    }
+}
+
 #[allow(deprecated)]
 pub fn create_wsol_account(
     rpc_client: &RpcClient,

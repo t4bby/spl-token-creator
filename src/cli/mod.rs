@@ -717,17 +717,17 @@ pub async fn buy(rpc_client: &RpcClient,
 
     let mut wsol_token_account;
     if skip == false {
-        if lamports_to_sol(balance) < (amount + 0.00011) {
-            error!("Insufficient balance to buy token. Requires at least {} SOL", amount + 0.00011);
-            return;
-        }
-
         (wsol_token_account, _) = spl::get_token_account(
             &rpc_client,
             &payer.pubkey(),
             &payer.pubkey(),
             &spl_token::native_mint::id()
         );
+
+        let mut enough_balance = true;
+        if lamports_to_sol(balance) < (amount + 0.00011) {
+            enough_balance = false;
+        }
 
         let mut balance: u64 = 0u64;
         let b = rpc_client.get_token_account_balance(&wsol_token_account);
@@ -740,7 +740,19 @@ pub async fn buy(rpc_client: &RpcClient,
         if balance >= sol_to_lamports(amount + 0.00011) {
             info!("WSOL Account has sufficient balance to buy token");
         } else {
-            info!("Insufficient balance to buy token. Creating WSOL account");
+
+            if enough_balance == false {
+                error!("Insufficient balance to buy token. Requires at least {} SOL", amount + 0.00011);
+                return;
+            }
+
+            info!("Insufficient balance to buy token. Closing and creating Creating WSOL account");
+
+            spl::token::close_wsol_account(
+                &rpc_client,
+                &payer,
+                &wsol_token_account.clone());
+
             (wsol_token_account, _) = spl::token::create_wsol_account(
                 &rpc_client,
                 &payer,
