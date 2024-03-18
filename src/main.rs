@@ -105,53 +105,51 @@ async fn main() {
 
     if project_empty {
         match args.command {
-            Commands::GenerateProject { name, symbol, icon, mint, decimal } => {
+            Commands::GenerateProject { name, symbol, icon, description, mint, decimal } => {
                 println!("Generating project files");
 
-                let mut name = name.unwrap_or_else(|| {
+                let name = name.unwrap_or_else(|| {
                     print!("Enter Token Name: ");
                     io::stdout().flush().unwrap();
 
                     let mut input = String::new();
                     io::stdin().read_line(&mut input)
                                .expect("Invalid Input");
-                    input
+                    input.trim().to_string()
                 });
 
-                let mut symbol = symbol.unwrap_or_else(|| {
+                let symbol = symbol.unwrap_or_else(|| {
                     print!("Enter Token Symbol: ");
                     io::stdout().flush().unwrap();
 
                     let mut input = String::new();
                     io::stdin().read_line(&mut input)
                                .expect("Invalid Input");
-                    input
+
+                    input.trim().to_string()
                 });
 
-                let mut icon = icon.unwrap_or_else(|| {
+                let icon = icon.unwrap_or_else(|| {
                     print!("Enter Icon Name [eg. icon.jpg]: ");
                     io::stdout().flush().unwrap();
 
                     let mut input = String::new();
                     io::stdin().read_line(&mut input)
                                .expect("Invalid Input");
-                    input
+                    input.trim().to_string()
                 });
 
-                print!("Enter Description File Location [eg. description.txt]: ");
-                io::stdout().flush().unwrap();
-                let mut description_file_path = String::new();
-
-                io::stdin().read_line(&mut description_file_path)
-                           .expect("Invalid Input");
-                description_file_path = description_file_path.trim().to_string();
+                let description_file_path = description.unwrap_or_else(|| {
+                    print!("Enter Description File Location [eg. description.txt]: ");
+                    io::stdout().flush().unwrap();
+                    let mut input = String::new();
+                    io::stdin().read_line(&mut input)
+                               .expect("Invalid Input");
+                    input.trim().to_string()
+                });
 
                 let contents = std::fs::read_to_string(description_file_path)
                     .expect("Should have been able to read the file");
-
-                name = name.trim().to_string();
-                symbol = symbol.trim().to_string();
-                icon = icon.trim().to_string();
 
                 println!();
                 println!("Project Name: {}", &name);
@@ -198,7 +196,7 @@ async fn main() {
                 return;
             },
 
-            Commands::Buy { mint, quote_mint, amount, wait, skip } => {
+            Commands::Buy { mint, quote_mint, amount, wait, skip, overhead } => {
                 cli::buy(
                     &rpc_client,
                     &config,
@@ -208,6 +206,7 @@ async fn main() {
                     amount,
                     wait,
                     skip,
+                    overhead,
                     cluster_type
                 ).await;
                 return;
@@ -340,7 +339,7 @@ async fn main() {
         }
 
         Commands::Airdrop {
-            percentage
+            percentage, confirm
         } => {
             cli::airdrop(
                 &rpc_client,
@@ -348,7 +347,8 @@ async fn main() {
                 project_dir,
                 &mut project_config,
                 percentage,
-                has_project_config
+                has_project_config,
+                confirm
             ).await;
         },
 
@@ -462,7 +462,7 @@ async fn main() {
             ).await;
         },
 
-        Commands::AutoSell { mint, quote_mint, interval, percentage } => {
+        Commands::AutoSell { mint, quote_mint, overhead, interval, percentage } => {
             if token_created == false {
                 info!("Token not created");
                 return;
@@ -475,6 +475,7 @@ async fn main() {
                 &mint,
                 &quote_mint,
                 interval,
+                overhead,
                 percentage,
                 cluster_type
             ).await;

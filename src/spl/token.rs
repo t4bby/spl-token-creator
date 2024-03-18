@@ -127,7 +127,8 @@ pub fn create(rpc_client: &RpcClient,
 }
 
 #[allow(deprecated)]
-pub fn airdrop(rpc_client: &RpcClient, payer: &Keypair, project_dir: &str, project_config: &mut ProjectConfig, percent: f64) {
+pub fn airdrop(rpc_client: &RpcClient, payer: &Keypair, project_dir: &str,
+               project_config: &mut ProjectConfig, percent: f64, confirm: bool) {
     let token_keypair = Keypair::from_base58_string(&project_config.token_keypair);
 
     let balance = rpc_client.get_balance(&payer.pubkey()).unwrap();
@@ -220,6 +221,7 @@ pub fn airdrop(rpc_client: &RpcClient, payer: &Keypair, project_dir: &str, proje
                 &rpc_client,
                 &wallet,
                 0.015,
+                confirm
             );
             project_config.wsol_wallets.push(wsol_keypair.to_base58_string());
         }
@@ -243,6 +245,7 @@ pub fn create_wsol_account(
     rpc_client: &RpcClient,
     wallet: &Keypair,
     transfer_amount: f64,
+    confirm: bool
 ) -> (Pubkey, Keypair) {
     info!("Creating WSOL account");
 
@@ -262,15 +265,34 @@ pub fn create_wsol_account(
     );
 
     info!("Sending transaction");
-    match rpc_client.send_and_confirm_transaction(&transaction) {
-        Ok(s) => {
-            info!("WSOL Account: {:?}", wsol_keypair.pubkey());
-            info!("WSOL Account Creation Tx: {:?}", s);
+    if confirm {
+        match rpc_client.send_and_confirm_transaction(&transaction) {
+            Ok(s) => {
+                info!("WSOL Account: {:?}", wsol_keypair.pubkey());
+                info!("WSOL Account Creation Tx: {:?}", s);
+            }
+            Err(e) => {
+                panic!("Error: {:?}", e);
+            }
         }
-        Err(e) => {
-            panic!("Error: {:?}", e);
+    } else {
+        match rpc_client.send_transaction_with_config(&transaction, RpcSendTransactionConfig {
+            skip_preflight: true,
+            preflight_commitment: None,
+            encoding: None,
+            max_retries: None,
+            min_context_slot: None,
+        }) {
+            Ok(s) => {
+                info!("WSOL Account: {:?}", wsol_keypair.pubkey());
+                info!("WSOL Account Creation Tx: {:?}", s);
+            }
+            Err(e) => {
+                panic!("Error: {:?}", e);
+            }
         }
     }
+
 
     (wsol_keypair.pubkey(), wsol_keypair.insecure_clone())
 }

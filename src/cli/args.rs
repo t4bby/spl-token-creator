@@ -63,12 +63,16 @@ pub enum Commands {
         #[arg(long, short = 'i')]
         icon: Option<String>,
 
+        /// Description File Path
+        #[arg(long, short = 'd')]
+        description: Option<String>,
+
         /// Token Mint
-        #[arg(long, short = 'm', default_value_t = 10000000)]
+        #[arg(long, default_value_t = 10000000)]
         mint: u64,
 
         /// Token Decimal
-        #[arg(long, short = 'd', default_value_t = 8)]
+        #[arg(long, default_value_t = 8)]
         decimal: u8,
     },
 
@@ -107,6 +111,10 @@ pub enum Commands {
         /// percentage amount to distribute to each wallet
         #[arg(short = 'p', default_value_t = 50.0)]
         percentage: f64,
+
+        /// Confirm WSOL Account Confirmation
+        #[arg(long, default_value_t = false)]
+        confirm: bool,
     },
 
     /// Burn all SPL token
@@ -177,6 +185,10 @@ pub enum Commands {
         /// Skip WSOL Account creation
         #[arg(long, default_value_t = false)]
         skip: bool,
+
+        /// Buy Overhead (wait time after pool was opened)
+        #[arg(short = 'o', default_value_t = 0.0)]
+        overhead: f64,
     },
 
     /// Sell Token
@@ -237,6 +249,10 @@ pub enum Commands {
         /// Quote Mint
         #[arg(short = 'q', default_value = "So11111111111111111111111111111111111111112")]
         quote_mint: String,
+
+        /// Sell Overhead (wait time after pool was opened)
+        #[arg(short = 'o', default_value_t = 2.0)]
+        overhead: f64,
 
         /// Sell interval
         #[arg(short = 'i', default_value_t = 1.0)]

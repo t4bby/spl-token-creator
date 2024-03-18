@@ -32,6 +32,7 @@ pub struct TaskConfig {
     pub sell_interval: f64,
     pub rpc_url: String,
     pub buy_amount: f64,
+    pub overhead: f64,
 }
 
 impl WebSocketClient {

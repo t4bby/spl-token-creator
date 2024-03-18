@@ -319,7 +319,7 @@ pub async fn create_token(
     spl::token::create(&rpc_client, &keypair, &project_config);
     if airdrop {
         info!("Airdropping to wallets");
-        spl::token::airdrop(&rpc_client, &keypair, &project_dir, project_config, percentage);
+        spl::token::airdrop(&rpc_client, &keypair, &project_dir, project_config, percentage, false);
     }
 }
 
@@ -345,7 +345,8 @@ pub async fn airdrop(
     project_dir: String,
     project_config: &mut ProjectConfig,
     percentage: f64,
-    has_project_config: bool
+    has_project_config: bool,
+    confirm: bool
 ) {
     if has_project_config == false {
         error!("Project config not found");
@@ -357,7 +358,8 @@ pub async fn airdrop(
                         &keypair,
                         &project_dir,
                         project_config,
-                        percentage);
+                        percentage,
+                        confirm);
 }
 
 pub async fn burn(
@@ -516,6 +518,7 @@ pub async fn auto_sell(
     mint: &str,
     quote_mint: &str,
     interval: f64,
+    overhead: f64,
     percent: f64,
     cluster_type: ClusterType
 ) {
@@ -567,6 +570,7 @@ pub async fn auto_sell(
         sell_interval: interval,
         rpc_url: config.rpc_url.clone(),
         buy_amount: 0.0,
+        overhead,
     };
 
     utils::websocket::WebSocketClient::wait_for_pool(pool_data_sync.clone(),
@@ -584,8 +588,10 @@ pub async fn auto_sell(
 
         let connection = RpcClient::new(&task_config.rpc_url);
 
-        // have 2-seconds break from selling because you will drain it so fast
-        std::thread::sleep(std::time::Duration::from_secs_f64(2f64));
+        // have n-seconds break from selling because you will drain it so fast
+        if task_config.overhead > 0f64 {
+            std::thread::sleep(std::time::Duration::from_secs_f64(task_config.overhead));
+        }
 
         for wallet in wallets.iter() {
             info!("Selling wallet: {:?}", wallet.wallet);
@@ -644,6 +650,7 @@ pub async fn sell(rpc_client: &RpcClient,
                 &rpc_client,
                 &payer,
                 0.001, // gas fee
+                false
             );
         }
     }
@@ -677,6 +684,7 @@ pub async fn buy(rpc_client: &RpcClient,
                  amount: f64,
                  wait: bool,
                  skip: bool,
+                 overhead: f64,
                  cluster_type: ClusterType) {
     if base_mint.eq("So11111111111111111111111111111111111111112") {
         error!("Cannot buy native SOL mint");
@@ -722,6 +730,7 @@ pub async fn buy(rpc_client: &RpcClient,
                 &rpc_client,
                 &payer,
                 amount + 0.00011,
+                true
             );
         }
     } else {
@@ -768,6 +777,7 @@ pub async fn buy(rpc_client: &RpcClient,
             sell_interval: 0f64,
             rpc_url: config.rpc_url.clone(),
             buy_amount: amount,
+            overhead,
         };
 
         utils::websocket::WebSocketClient::wait_for_pool(pool_data_sync.clone(),
@@ -784,6 +794,12 @@ pub async fn buy(rpc_client: &RpcClient,
             info!("Buying");
 
             let connection = RpcClient::new(&task_config.rpc_url);
+
+            // have n-seconds break from selling because you will drain it so fast
+            if task_config.overhead > 0f64 {
+                std::thread::sleep(std::time::Duration::from_secs_f64(task_config.overhead));
+            }
+
             for wallet in wallets.iter() {
                 swap::buy(
                     &connection,
