@@ -79,7 +79,7 @@ pub enum Commands {
     /// Generate Wallets for Project
     GenerateWallet {
         /// Wallet generation count
-        #[arg(short='c', long)]
+        #[arg(short = 'c', long)]
         count: i32,
 
         /// Replace current wallets in the project
@@ -105,6 +105,9 @@ pub enum Commands {
         #[arg(long, short = 'o', default_value_t = 201)]
         orderbook_length: u64,
     },
+
+    /// Check Project Wallet Balance
+    Balance {},
 
     /// Airdrop SPL token to generated wallets
     Airdrop {
@@ -261,5 +264,13 @@ pub enum Commands {
         /// Sell percentage
         #[arg(short = 'p', default_value_t = 100.0)]
         percentage: f64,
+
+        /// Sell percentage
+        #[arg(long, default_value_t = false)]
+        withdraw: bool,
+
+        /// Sell percentage
+        #[arg(long)]
+        destination: Option<String>,
     }
 }

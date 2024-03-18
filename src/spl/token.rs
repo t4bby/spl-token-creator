@@ -412,7 +412,7 @@ pub fn send(rpc_client: &RpcClient,
             solana_program::system_instruction::transfer(
                 &wallet_keypair.pubkey(),
                 &destination,
-                wallet.balance
+                wallet.balance + sol_to_lamports(0.006)
             )
         );
 

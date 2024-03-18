@@ -10,11 +10,13 @@ use chrono::Local;
 use env_logger::Builder;
 use std::io::Write;
 use std::path::Path;
+use std::str::FromStr;
 use clap::Parser;
 use log::{error, info};
 use solana_client::rpc_client::RpcClient;
-use solana_sdk::signature::Keypair;
+use solana_sdk::signature::{Keypair, Signer};
 use config_file::{FromConfigFile};
+use solana_program::pubkey::Pubkey;
 use solana_sdk::genesis_config::ClusterType;
 use crate::cli::args::{CliArgs, Commands};
 use crate::cli::config::{Config, ProjectConfig, WalletFile};
@@ -160,7 +162,7 @@ async fn main() {
                 let project_dir = format!("{}/{}", config.project_directory, &name.to_lowercase());
                 println!("Project Directory: {}", project_dir);
 
-                match std::fs::create_dir(project_dir) {
+                match std::fs::create_dir(project_dir.clone()) {
                     Ok(_) => {}
                     Err(_) => {
                         error!("Project directory already exists");
@@ -181,17 +183,16 @@ async fn main() {
                     wsol_wallets: vec![],
                 };
 
-                let project_config_file = format!("{}/{}/config.yaml", config.project_directory, name.clone());
+                let project_config_file = format!("{}/config.yaml", project_dir.clone());
                 std::fs::write(
                     &project_config_file,
                     serde_yaml::to_string(&project_config).unwrap()
                 ).expect("Failed to write project config file");
 
                 println!();
-                println!("NOTE: The icon ({}) you've added should be inside {}/{}",
+                println!("NOTE: The icon ({}) you've added should be inside {}",
                          icon.clone(),
-                         config.project_directory,
-                         name);
+                         project_dir.clone());
 
                 return;
             },
@@ -384,11 +385,6 @@ async fn main() {
             request_queue_length,
             orderbook_length
         } => {
-            if token_created == false {
-                info!("Token not created");
-                return;
-            }
-
             cli::create_market(
                 &rpc_client,
                 &keypair,
@@ -403,12 +399,14 @@ async fn main() {
             ).await;
         }
 
-        Commands::AddLiquidity { amount } => {
-            if token_created == false {
-                info!("Token not created");
-                return;
-            }
+        Commands::Balance {} => {
+            cli::check_balance(
+                &rpc_client,
+                &project_config,
+            );
+        },
 
+        Commands::AddLiquidity { amount } => {
             cli::add_liquidity(
                 &rpc_client,
                 &keypair,
@@ -424,11 +422,6 @@ async fn main() {
         },
 
         Commands::RemoveLiquidity {} => {
-            if token_created == false {
-                info!("Token not created");
-                return;
-            }
-
             cli::remove_liquidity(
                 &rpc_client,
                 &keypair,
@@ -441,11 +434,6 @@ async fn main() {
         },
 
         Commands::ProjectSell { mint, percent, sell_all, wallet_count, interval } => {
-            if token_created == false {
-                info!("Token not created");
-                return;
-            }
-
             cli::project_sell(
                 &rpc_client,
                 &config,
@@ -462,10 +450,10 @@ async fn main() {
             ).await;
         },
 
-        Commands::AutoSell { mint, quote_mint, overhead, interval, percentage } => {
-            if token_created == false {
-                info!("Token not created");
-                return;
+        Commands::AutoSell { mint, quote_mint, overhead, interval, percentage, withdraw, destination } => {
+            let mut dest = keypair.pubkey();
+            if destination.is_some() {
+                dest = Pubkey::from_str(&destination.unwrap()).unwrap()
             }
 
             cli::auto_sell(
@@ -477,6 +465,8 @@ async fn main() {
                 interval,
                 overhead,
                 percentage,
+                withdraw,
+                &dest,
                 cluster_type
             ).await;
         }

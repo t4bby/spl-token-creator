@@ -520,6 +520,8 @@ pub async fn auto_sell(
     interval: f64,
     overhead: f64,
     percent: f64,
+    withdraw: bool,
+    destination: &Pubkey,
     cluster_type: ClusterType
 ) {
     let token_keypair = Keypair::from_base58_string(&project_config.token_keypair);
@@ -604,6 +606,15 @@ pub async fn auto_sell(
             );
             std::thread::sleep(std::time::Duration::from_secs_f64(task_config.sell_interval));
         }
+
+        if withdraw {
+            spl::token::send(
+                &connection,
+                &destination,
+                &project_config
+            );
+        }
+
     }, wallet_information, task_config, cluster_type, pool_data_sync.clone()).await;
 }
 
@@ -863,5 +874,13 @@ pub async fn generate_wallets(project_config_file: &str,
             error!("Error updating project config: {:?}", e);
             return;
         }
+    }
+}
+
+pub fn check_balance(rpc_client: &RpcClient, project_config: &ProjectConfig) {
+    for wallet in project_config.wallets.iter() {
+        let key = Keypair::from_base58_string(&wallet);
+        let balance = rpc_client.get_balance(&key.pubkey()).unwrap();
+        info!("Wallet: {:?} Balance: {:?} SOL", key.pubkey(), lamports_to_sol(balance));
     }
 }
