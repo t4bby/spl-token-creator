@@ -97,8 +97,8 @@ pub fn get_wallet_token_information(rpc_client: &RpcClient, wallet_bs58: &str, w
 
 #[allow(deprecated)]
 pub fn revoke_mint_authority(rpc_client: &RpcClient,
-                        payer: &Keypair,
-                        project_config: &ProjectConfig) {
+                             payer: &Keypair,
+                             project_config: &ProjectConfig) {
     let token_keypair = Keypair::from_base58_string(&project_config.token_keypair);
 
     let mut instructions: Vec<Instruction> = vec![];
@@ -190,14 +190,6 @@ pub fn airdrop(rpc_client: &RpcClient, payer: &Keypair, project_dir: &str,
     info!("Shared amount: {:?}", shared_amount);
 
     let mut instructions: Vec<Instruction> = vec![];
-    instructions.push(
-        solana_sdk::compute_budget::ComputeBudgetInstruction::set_compute_unit_limit(100000)
-    );
-
-    instructions.push(
-        solana_sdk::compute_budget::ComputeBudgetInstruction::set_compute_unit_price(100000)
-    );
-
 
     let (payer_token_account, _) = spl::get_token_account(
         rpc_client, &payer.pubkey(), &payer.pubkey(), &token_keypair.pubkey()
@@ -245,12 +237,21 @@ pub fn airdrop(rpc_client: &RpcClient, payer: &Keypair, project_dir: &str,
         );
     }
 
-    // split transaction into 9
+    // split transaction into 7
     let instruction_chunks: Vec<&[Instruction]> = instructions.chunks(9 * 2).collect();
 
     for chunks in instruction_chunks {
+        let mut new_instruction = vec![];
+        new_instruction.push(
+            solana_sdk::compute_budget::ComputeBudgetInstruction::set_compute_unit_limit(200_000)
+        );
+        new_instruction.push(
+            solana_sdk::compute_budget::ComputeBudgetInstruction::set_compute_unit_price(200_000)
+        );
+        new_instruction.extend_from_slice(chunks);
+
         let transaction = Transaction::new_signed_with_payer(
-            &chunks,
+            &new_instruction,
             Some(&payer.pubkey()),
             &[&payer],
             rpc_client.get_recent_blockhash().unwrap().0
@@ -261,7 +262,7 @@ pub fn airdrop(rpc_client: &RpcClient, payer: &Keypair, project_dir: &str,
                 info!("Airdrop Tx: {:?}", s);
             }
             Err(e) => {
-                error!("Error: {:?}", e);
+                panic!("Error: {:?}", e);
             }
         }
     }
@@ -362,13 +363,7 @@ pub fn create_wsol_account(
             }
         }
     } else {
-        match rpc_client.send_transaction_with_config(&transaction, RpcSendTransactionConfig {
-            skip_preflight: true,
-            preflight_commitment: None,
-            encoding: None,
-            max_retries: None,
-            min_context_slot: None,
-        }) {
+        match rpc_client.send_and_confirm_transaction(&transaction) {
             Ok(s) => {
                 info!("WSOL Account: {:?}", wsol_keypair.pubkey());
                 info!("WSOL Account Creation Tx: {:?}", s);
@@ -409,7 +404,9 @@ pub fn create_wsol_account_instruction(
         &owner,
     ).unwrap();
 
-    (vec![create_account_instruction,
+    (vec![solana_sdk::compute_budget::ComputeBudgetInstruction::set_compute_unit_price(44684),
+          solana_sdk::compute_budget::ComputeBudgetInstruction::set_compute_unit_limit(600000),
+          create_account_instruction,
           transfer_instruction,
           initialize_account_instruction], new_keypair)
 }

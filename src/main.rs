@@ -451,6 +451,14 @@ async fn main() {
             );
         },
 
+        Commands::CreateWsol {} => {
+            cli::create_wsol(
+                &rpc_client,
+                &project_dir,
+                &mut project_config,
+            ).await;
+        },
+
         Commands::AddLiquidity { amount } => {
             cli::add_liquidity(
                 &rpc_client,

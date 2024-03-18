@@ -10,7 +10,7 @@ use solana_sdk::signature::{Keypair, Signer};
 use tokio::time::sleep;
 use config::ProjectConfig;
 use dex::raydium;
-use crate::spl::token::WalletInformation;
+use crate::spl::token::{create_wsol_account, WalletInformation};
 use crate::{api, dex, spl, utils};
 use crate::cli::config::{Config, LiquidityConfig, MarketConfig};
 use crate::dex::raydium::layout::{LiquidityStateLayoutV4, MarketStateLayoutV3};
@@ -907,4 +907,32 @@ pub fn check_balance(rpc_client: &RpcClient, project_config: &ProjectConfig) {
 pub async fn revoke_mint_authority(rpc_client: &RpcClient, payer: &Keypair, project_config: &ProjectConfig) {
     info!("Revoking mint authority of {}", project_config.name);
     spl::token::revoke_mint_authority(&rpc_client, &payer, &project_config);
+}
+
+pub async fn create_wsol(rpc_client: &RpcClient, project_dir: &str, project_config: &mut ProjectConfig) {
+    if project_config.wsol_wallets.len() == 0 {
+        for wallet in project_config.wallets.iter() {
+            let wallet = Keypair::from_base58_string(wallet);
+
+            let (_, wsol_keypair) = create_wsol_account(
+                &rpc_client,
+                &wallet,
+                0.015,
+                true
+            );
+            project_config.wsol_wallets.push(wsol_keypair.to_base58_string());
+        }
+
+        match std::fs::write(
+            format!("{}/config.yaml", project_dir),
+            serde_yaml::to_string(&project_config).unwrap()
+        ) {
+            Ok(_) => {
+                info!("Project config updated");
+            }
+            Err(e) => {
+                error!("Error writing project config, {:?}", e);
+            }
+        }
+    }
 }

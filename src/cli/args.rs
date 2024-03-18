@@ -163,6 +163,9 @@ pub enum Commands {
     /// Remove liquidity
     RemoveLiquidity {},
 
+    /// Create WSOL Account
+    CreateWsol {},
+
     /// Get Market State
     PoolInformation {
         /// Token Mint
