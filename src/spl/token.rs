@@ -437,60 +437,31 @@ pub fn send(rpc_client: &RpcClient,
         let wallet_keypair = Keypair::from_base58_string(&wallet.wallet);
         let mut instructions: Vec<Instruction> = vec![];
 
-        instructions.push(
-            spl_token::instruction::close_account(
-                &spl_token::id(),
-                &wallet.wsol_account,
-                &wallet_keypair.pubkey(),
-                &wallet_keypair.pubkey(),
-                &[],
-            ).unwrap()
-        );
-
-        instructions.push(
-            solana_program::system_instruction::transfer(
-                &wallet_keypair.pubkey(),
-                &destination,
-                wallet.balance + sol_to_lamports(0.006)
-            )
-        );
-
-        let transaction = Transaction::new_signed_with_payer(
-            &instructions,
-            Some(&wallet_keypair.pubkey()),
-            &[&wallet_keypair],
-            rpc_client.get_recent_blockhash().unwrap().0
-        );
-
-        info!("Sending {:?} SOL to {:?} from {:?}",
-            lamports_to_sol(wallet.balance),
-            destination, wallet_keypair.pubkey());
-
-        match rpc_client.send_transaction_with_config(&transaction, RpcSendTransactionConfig {
-            skip_preflight: false,
-            preflight_commitment: Some(CommitmentLevel::Confirmed),
-            encoding: None,
-            max_retries: None,
-            min_context_slot: None,
-        }) {
-            Ok(s) => {
-                info!("Send Tx: {:?}", s);
-            }
-            Err(e) => {
-                error!("Error: {:?}", e);
-            }
+        let mut balance =  wallet.balance.clone();
+        if balance != 0u64 {
+            instructions.push(
+                spl_token::instruction::close_account(
+                    &spl_token::id(),
+                    &wallet.wsol_account,
+                    &wallet_keypair.pubkey(),
+                    &wallet_keypair.pubkey(),
+                    &[],
+                ).unwrap()
+            );
         }
 
-        info!("Sending remaining balance");
-        // send remaining
-        let mut instructions: Vec<Instruction> = vec![];
+        if wallet.balance == 0u64 {
+            // get main sol account balance
+            balance = rpc_client.get_balance(&wallet_keypair.pubkey()).unwrap();
+            info!("Wallet: {:?}", &wallet_keypair.pubkey());
+            info!("Wallet Balance: {:?} SOL", lamports_to_sol(balance));
+        }
 
         instructions.push(
             solana_program::system_instruction::transfer(
                 &wallet_keypair.pubkey(),
                 &destination,
-                rpc_client.get_balance(&wallet_keypair.pubkey()).unwrap()
-                    - sol_to_lamports(0.0005)
+                balance
             )
         );
 
