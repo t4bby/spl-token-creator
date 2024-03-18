@@ -26,8 +26,8 @@ pub enum MetadataError {
 
 pub fn generate_metadata(project_dir: &str, name: &str, symbol: &str, description: &str, image: &str) -> Result<(), MetadataError> {
     let metadata = format!(
-        r#"{{"name": "{}", "symbol": "{}",  "image": "{}", "description": "{}", "extensions": "", "tags": []}}"#,
-        name, symbol, image, description
+        r#"{{"name": "{}", "symbol": "{}", "description": "{}", "image": "{}"}}"#,
+        name, symbol, description, image
     );
 
     let metadata_path = format!("{}/metadata.json", project_dir);
