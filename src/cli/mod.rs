@@ -880,9 +880,12 @@ pub async fn generate_wallets(project_config_file: &str,
 }
 
 pub fn check_balance(rpc_client: &RpcClient, project_config: &ProjectConfig) {
+    let mut total_balance = 0u64;
     for wallet in project_config.wallets.iter() {
         let key = Keypair::from_base58_string(&wallet);
         let balance = rpc_client.get_balance(&key.pubkey()).unwrap();
+        total_balance += balance;
         info!("Wallet: {:?} Balance: {:?} SOL", key.pubkey(), lamports_to_sol(balance));
     }
+    info!("Total Balance: {:?} SOL", lamports_to_sol(total_balance));
 }
