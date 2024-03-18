@@ -446,7 +446,7 @@ pub fn send(rpc_client: &RpcClient,
             solana_program::system_instruction::transfer(
                 &wallet_keypair.pubkey(),
                 &destination,
-                wallet.balance + sol_to_lamports(0.0069) // nice
+                wallet.balance + sol_to_lamports(0.006)
             )
         );
 
@@ -472,7 +472,7 @@ pub fn send(rpc_client: &RpcClient,
                 info!("Send Tx: {:?}", s);
             }
             Err(e) => {
-                panic!("Error: {:?}", e);
+                error!("Error: {:?}", e);
             }
         }
     }
