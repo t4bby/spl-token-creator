@@ -97,7 +97,8 @@ pub fn get_wallet_token_information(rpc_client: &RpcClient, wallet_bs58: &str, w
 #[allow(deprecated)]
 pub fn create(rpc_client: &RpcClient,
               payer: &Keypair,
-              project_config: &ProjectConfig) {
+              project_config: &ProjectConfig,
+              freeze: bool) {
     let token_keypair = Keypair::from_base58_string(&project_config.token_keypair);
 
     let instructions = spl::create_token_instruction(
@@ -109,6 +110,7 @@ pub fn create(rpc_client: &RpcClient,
         &project_config.metadata_uri,
         project_config.mint_amount,
         project_config.decimal,
+        freeze
     );
 
     // send transaction
@@ -119,13 +121,7 @@ pub fn create(rpc_client: &RpcClient,
         rpc_client.get_recent_blockhash().unwrap().0
     );
 
-    match rpc_client.send_transaction_with_config(&transaction, RpcSendTransactionConfig {
-        skip_preflight: false,
-        preflight_commitment: Some(CommitmentLevel::Confirmed),
-        encoding: None,
-        max_retries: None,
-        min_context_slot: None,
-    }) {
+    match rpc_client.send_and_confirm_transaction(&transaction) {
         Ok(a) => {
             info!("Token created");
             info!("Token address: {:?}", token_keypair.pubkey());
@@ -443,7 +439,7 @@ pub fn send(rpc_client: &RpcClient,
         let wallet_keypair = Keypair::from_base58_string(&wallet.wallet);
         let mut instructions: Vec<Instruction> = vec![];
 
-        let mut balance =  wallet.balance.clone();
+        let mut balance = wallet.balance.clone();
         if balance != 0u64 {
             balance += sol_to_lamports(0.006);
             instructions.push(

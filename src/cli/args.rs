@@ -47,6 +47,10 @@ pub enum Commands {
         /// percentage amount to distribute to each wallet
         #[arg(short = 'p', default_value_t = 50.0)]
         percentage: f64,
+
+        /// freeze authority
+        #[arg(long, default_value_t = false)]
+        freeze: bool,
     },
 
     /// Generate project files

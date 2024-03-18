@@ -216,7 +216,8 @@ pub async fn create_token(
     generate_wallet: bool,
     count: i32,
     airdrop: bool,
-    percentage: f64
+    percentage: f64,
+    freeze: bool
 ) {
     if has_project_config == false {
         error!("Project config not found");
@@ -306,7 +307,7 @@ pub async fn create_token(
         project_config.metadata_uri = format!("https://{}.ipfs.nftstorage.link", metadata_cid);
     }
 
-    spl::token::create(&rpc_client, &keypair, &project_config);
+    spl::token::create(&rpc_client, &keypair, &project_config, freeze);
     match std::fs::write(&project_config_file, serde_yaml::to_string(&project_config).unwrap()) {
         Ok(_) => {
             info!("Project config updated");

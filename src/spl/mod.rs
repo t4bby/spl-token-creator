@@ -36,7 +36,8 @@ pub fn create_token_instruction<U: ToString>(client: &RpcClient,
                                              token_symbol: U,
                                              token_uri: U,
                                              mint_amount: u64,
-                                             decimal: u8) -> Vec<Instruction> {
+                                             decimal: u8,
+                                             freeze: bool) -> Vec<Instruction> {
     let lamports = client.get_minimum_balance_for_rent_exemption(spl_token::state::Mint::LEN).unwrap();
     let mut instructions: Vec<Instruction> = vec![];
 
@@ -94,7 +95,7 @@ pub fn create_token_instruction<U: ToString>(client: &RpcClient,
             collection: None,
             uses: None,
         },
-        is_mutable: false,
+        is_mutable: true,
         collection_details: None,
     };
 
@@ -113,7 +114,7 @@ pub fn create_token_instruction<U: ToString>(client: &RpcClient,
         mint_authority: payer.pubkey(),
         payer: payer.pubkey(),
         update_authority: (payer.pubkey(), true),
-        system_program: Default::default(),
+        system_program: solana_program::system_program::id(),
         rent: None,
     };
 
@@ -121,16 +122,18 @@ pub fn create_token_instruction<U: ToString>(client: &RpcClient,
         meta_data.instruction(metadata_args)
     );
 
-    instructions.push(
-        spl_token::instruction::set_authority(
-            &spl_token::id(),
-            &token_keypair.pubkey(),
-            None,
-            AuthorityType::MintTokens,
-            &payer.pubkey(),
-            &[],
-        ).unwrap()
-    );
+    if freeze {
+        instructions.push(
+            spl_token::instruction::set_authority(
+                &spl_token::id(),
+                &token_keypair.pubkey(),
+                None,
+                AuthorityType::MintTokens,
+                &payer.pubkey(),
+                &[],
+            ).unwrap()
+        );
+    }
 
     return instructions;
 }
@@ -154,7 +157,6 @@ pub fn get_token_account(connection: &RpcClient,
                          owner_pubkey: &Pubkey,
                          payer_pubkey: &Pubkey,
                          mint_pubkey: &Pubkey) -> (Pubkey, Option<Instruction>) {
-
     debug!("getting token account for {:?}", mint_pubkey);
     let account = connection.get_token_accounts_by_owner(
         &owner_pubkey,

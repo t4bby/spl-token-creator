@@ -338,7 +338,7 @@ async fn main() {
             generate_wallet,
             count,
             airdrop,
-            percentage
+            percentage, freeze
         } => {
             cli::create_token(
                 &rpc_client,
@@ -354,7 +354,8 @@ async fn main() {
                 generate_wallet,
                 count,
                 airdrop,
-                percentage
+                percentage,
+                freeze,
             ).await;
             return;
         }
