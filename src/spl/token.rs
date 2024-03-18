@@ -190,6 +190,15 @@ pub fn airdrop(rpc_client: &RpcClient, payer: &Keypair, project_dir: &str,
     info!("Shared amount: {:?}", shared_amount);
 
     let mut instructions: Vec<Instruction> = vec![];
+    instructions.push(
+        solana_sdk::compute_budget::ComputeBudgetInstruction::set_compute_unit_limit(100000)
+    );
+
+    instructions.push(
+        solana_sdk::compute_budget::ComputeBudgetInstruction::set_compute_unit_price(100000)
+    );
+
+
     let (payer_token_account, _) = spl::get_token_account(
         rpc_client, &payer.pubkey(), &payer.pubkey(), &token_keypair.pubkey()
     );
