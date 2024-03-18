@@ -64,7 +64,12 @@ pub fn get_wallet_token_information(rpc_client: &RpcClient, wallet_bs58: &str, w
         if tries >= 5 {
             break;
         }
-        let b = rpc_client.get_token_account_balance(&token_account).unwrap();
+        let b = match rpc_client.get_token_account_balance(&token_account) {
+            Ok(a) => a,
+            Err(_) => {
+                break;
+            }
+        };
         let decimal = b.decimals;
         balance = (b.ui_amount.unwrap() * 10f64.powf(decimal as f64)) as u64;
         if balance > 1 {
@@ -447,6 +452,45 @@ pub fn send(rpc_client: &RpcClient,
                 &wallet_keypair.pubkey(),
                 &destination,
                 wallet.balance + sol_to_lamports(0.006)
+            )
+        );
+
+        let transaction = Transaction::new_signed_with_payer(
+            &instructions,
+            Some(&wallet_keypair.pubkey()),
+            &[&wallet_keypair],
+            rpc_client.get_recent_blockhash().unwrap().0
+        );
+
+        info!("Sending {:?} SOL to {:?} from {:?}",
+            lamports_to_sol(wallet.balance),
+            destination, wallet_keypair.pubkey());
+
+        match rpc_client.send_transaction_with_config(&transaction, RpcSendTransactionConfig {
+            skip_preflight: false,
+            preflight_commitment: Some(CommitmentLevel::Confirmed),
+            encoding: None,
+            max_retries: None,
+            min_context_slot: None,
+        }) {
+            Ok(s) => {
+                info!("Send Tx: {:?}", s);
+            }
+            Err(e) => {
+                error!("Error: {:?}", e);
+            }
+        }
+
+        info!("Sending remaining balance");
+        // send remaining
+        let mut instructions: Vec<Instruction> = vec![];
+
+        instructions.push(
+            solana_program::system_instruction::transfer(
+                &wallet_keypair.pubkey(),
+                &destination,
+                rpc_client.get_balance(&wallet_keypair.pubkey()).unwrap()
+                    - sol_to_lamports(0.0005)
             )
         );
 

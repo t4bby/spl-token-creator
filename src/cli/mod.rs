@@ -618,7 +618,6 @@ pub async fn auto_sell(
                 &project_config
             );
         }
-
     }, wallet_information, task_config, cluster_type, pool_data_sync.clone()).await;
 }
 
@@ -740,7 +739,6 @@ pub async fn buy(rpc_client: &RpcClient,
         if balance >= sol_to_lamports(amount + 0.00011) {
             info!("WSOL Account has sufficient balance to buy token");
         } else {
-
             if enough_balance == false {
                 error!("Insufficient balance to buy token. Requires at least {} SOL", amount + 0.00011);
                 return;
