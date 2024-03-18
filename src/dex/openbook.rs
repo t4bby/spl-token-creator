@@ -154,6 +154,13 @@ pub fn open_market(
         }
     }
 
+    tx1.push(
+        solana_sdk::compute_budget::ComputeBudgetInstruction::set_compute_unit_limit(200000)
+    );
+    tx1.push(
+        solana_sdk::compute_budget::ComputeBudgetInstruction::set_compute_unit_price(100000)
+    );
+
     // Base Vault and Quote Vault Instructions
     tx1.push(
         solana_program::system_instruction::create_account(
@@ -194,6 +201,14 @@ pub fn open_market(
     );
 
     let mut tx2: Vec<Instruction> = vec![];
+
+    tx2.push(
+        solana_sdk::compute_budget::ComputeBudgetInstruction::set_compute_unit_limit(200000)
+    );
+
+    tx2.push(
+        solana_sdk::compute_budget::ComputeBudgetInstruction::set_compute_unit_price(100000)
+    );
 
     // tx2
     tx2.push(

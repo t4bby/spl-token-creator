@@ -168,6 +168,14 @@ pub async fn remove_liquidity(rpc_client: &RpcClient,
 
     let mut instructions: Vec<Instruction> = vec![];
 
+    instructions.push(
+        solana_sdk::compute_budget::ComputeBudgetInstruction::set_compute_unit_limit(200000)
+    );
+
+    instructions.push(
+        solana_sdk::compute_budget::ComputeBudgetInstruction::set_compute_unit_price(100000)
+    );
+
     let balance_needed = rpc_client.get_minimum_balance_for_rent_exemption(165).unwrap();
 
     let (new_token_account, seed) = spl::generate_pubkey(&payer.pubkey(), &spl_token::id(), &project_dir);
@@ -313,6 +321,14 @@ pub async fn add_liquidity(rpc_client: &RpcClient,
     let wsol_pub = &spl_token::native_mint::id();
 
     let mut instructions: Vec<Instruction> = vec![];
+    instructions.push(
+        solana_sdk::compute_budget::ComputeBudgetInstruction::set_compute_unit_limit(200000)
+    );
+
+    instructions.push(
+        solana_sdk::compute_budget::ComputeBudgetInstruction::set_compute_unit_price(100000)
+    );
+
     let (amm_id, _) = LiquidityPoolInfo::get_associated_id(program_id,
                                                            market_keypair.pubkey());
 
