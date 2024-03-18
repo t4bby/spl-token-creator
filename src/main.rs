@@ -368,6 +368,13 @@ async fn main() {
     }
 
     match args.command {
+        Commands::RevokeAuthority {} => {
+            cli::revoke_mint_authority(
+                &rpc_client,
+                &keypair,
+                &project_config
+            ).await;
+        },
         Commands::GenerateWallet { count, replace } => {
             cli::generate_wallets(
                 &project_config_file,

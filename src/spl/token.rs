@@ -8,6 +8,7 @@ use solana_sdk::commitment_config::CommitmentLevel;
 use solana_sdk::signature::Keypair;
 use solana_sdk::signer::Signer;
 use solana_sdk::transaction::Transaction;
+use spl_token::instruction::AuthorityType;
 use crate::cli::config::ProjectConfig;
 use crate::spl;
 
@@ -91,6 +92,41 @@ pub fn get_wallet_token_information(rpc_client: &RpcClient, wallet_bs58: &str, w
         token_account,
         balance,
         create_token_account_instruction: None,
+    }
+}
+
+#[allow(deprecated)]
+pub fn revoke_mint_authority(rpc_client: &RpcClient,
+                        payer: &Keypair,
+                        project_config: &ProjectConfig) {
+    let token_keypair = Keypair::from_base58_string(&project_config.token_keypair);
+
+    let mut instructions: Vec<Instruction> = vec![];
+    instructions.push(
+        spl_token::instruction::set_authority(
+            &spl_token::id(),
+            &token_keypair.pubkey(),
+            None,
+            AuthorityType::MintTokens,
+            &payer.pubkey(),
+            &[],
+        ).unwrap()
+    );
+
+    let transaction = Transaction::new_signed_with_payer(
+        &instructions,
+        Some(&payer.pubkey()),
+        &[&payer, &token_keypair],
+        rpc_client.get_recent_blockhash().unwrap().0
+    );
+
+    match rpc_client.send_and_confirm_transaction(&transaction) {
+        Ok(s) => {
+            info!("Revoke Mint Authority Tx: {:?}", s);
+        }
+        Err(e) => {
+            panic!("Error: {:?}", e);
+        }
     }
 }
 

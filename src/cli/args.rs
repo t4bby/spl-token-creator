@@ -113,6 +113,9 @@ pub enum Commands {
     /// Check Project Wallet Balance
     Balance {},
 
+    /// Revoke the token mint authority
+    RevokeAuthority {},
+
     /// Airdrop SPL token to generated wallets
     Airdrop {
         /// percentage amount to distribute to each wallet

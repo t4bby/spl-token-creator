@@ -903,3 +903,8 @@ pub fn check_balance(rpc_client: &RpcClient, project_config: &ProjectConfig) {
     }
     info!("Total Balance: {:?} SOL", lamports_to_sol(total_balance));
 }
+
+pub async fn revoke_mint_authority(rpc_client: &RpcClient, payer: &Keypair, project_config: &ProjectConfig) {
+    info!("Revoking mint authority of {}", project_config.name);
+    spl::token::revoke_mint_authority(&rpc_client, &payer, &project_config);
+}
