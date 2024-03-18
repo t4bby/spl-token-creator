@@ -42,6 +42,14 @@ pub fn create_token_instruction<U: ToString>(client: &RpcClient,
     let mut instructions: Vec<Instruction> = vec![];
 
     instructions.push(
+        solana_sdk::compute_budget::ComputeBudgetInstruction::set_compute_unit_limit(100000)
+    );
+
+    instructions.push(
+        solana_sdk::compute_budget::ComputeBudgetInstruction::set_compute_unit_price(100000)
+    );
+
+    instructions.push(
         solana_program::system_instruction::create_account(
             &payer.pubkey(),
             &token_keypair.pubkey(),
@@ -57,32 +65,6 @@ pub fn create_token_instruction<U: ToString>(client: &RpcClient,
 
     let associated_token_instruction = create_associated_token_account(
         &payer.pubkey(), &payer.pubkey(), &token_keypair.pubkey(),
-    );
-
-    instructions.push(
-        spl_token::instruction::initialize_mint(
-            &spl_token::id(),
-            &token_keypair.pubkey(),
-            &payer.pubkey(),
-            None,
-            decimal,
-        )
-            .unwrap()
-    );
-
-    instructions.push(
-        associated_token_instruction
-    );
-
-    instructions.push(
-        spl_token::instruction::mint_to(
-            &spl_token::id(),
-            &token_keypair.pubkey(),
-            &token_ata,
-            &payer.pubkey(),
-            &[],
-            mint_amount * u64::pow(10, decimal as u32),
-        ).unwrap()
     );
 
     let metadata_args = mpl_token_metadata::instructions::CreateMetadataAccountV3InstructionArgs {
@@ -119,8 +101,35 @@ pub fn create_token_instruction<U: ToString>(client: &RpcClient,
     };
 
     instructions.push(
+        spl_token::instruction::initialize_mint(
+            &spl_token::id(),
+            &token_keypair.pubkey(),
+            &payer.pubkey(),
+            None,
+            decimal,
+        )
+            .unwrap()
+    );
+
+    instructions.push(
         meta_data.instruction(metadata_args)
     );
+
+    instructions.push(
+        associated_token_instruction
+    );
+
+    instructions.push(
+        spl_token::instruction::mint_to(
+            &spl_token::id(),
+            &token_keypair.pubkey(),
+            &token_ata,
+            &payer.pubkey(),
+            &[],
+            mint_amount * u64::pow(10, decimal as u32),
+        ).unwrap()
+    );
+
 
     if freeze {
         instructions.push(
