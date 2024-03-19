@@ -444,10 +444,12 @@ async fn main() {
             ).await;
         }
 
-        Commands::Balance {} => {
+        Commands::Balance { all } => {
             cli::check_balance(
                 &rpc_client,
+                Some(&keypair),
                 &project_config,
+                all
             );
         },
 

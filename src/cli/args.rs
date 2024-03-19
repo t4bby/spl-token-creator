@@ -111,7 +111,11 @@ pub enum Commands {
     },
 
     /// Check Project Wallet Balance
-    Balance {},
+    Balance {
+        /// Balance of the project wallets including payer and WSOL
+        #[arg(long, default_value_t = false)]
+        all: bool,
+    },
 
     /// Revoke the token mint authority
     RevokeAuthority {},

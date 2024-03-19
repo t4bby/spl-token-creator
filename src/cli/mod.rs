@@ -612,7 +612,7 @@ pub async fn auto_sell(
         if withdraw {
             info!("Withdrawing");
             std::thread::sleep(std::time::Duration::from_secs(5));
-            check_balance(&connection, &project_config);
+            check_balance(&connection, None, &project_config, false);
 
             spl::token::send(
                 &connection,
@@ -893,8 +893,19 @@ pub async fn generate_wallets(project_config_file: &str,
     }
 }
 
-pub fn check_balance(rpc_client: &RpcClient, project_config: &ProjectConfig) {
+pub fn check_balance(rpc_client: &RpcClient, payer: Option<&Keypair>, project_config: &ProjectConfig, all: bool) {
     let mut total_balance = 0u64;
+
+    if all {
+        if payer.is_some() {
+            let key = payer.unwrap();
+            let balance = rpc_client.get_balance(&key.pubkey()).unwrap();
+            total_balance += balance;
+            info!("Wallet: {:?} Balance: {:?} SOL", key.pubkey(), lamports_to_sol(balance));
+        }
+        total_balance += check_wsol_balance(rpc_client, project_config);
+    }
+
     for wallet in project_config.wallets.iter() {
         let key = Keypair::from_base58_string(&wallet);
         let balance = rpc_client.get_balance(&key.pubkey()).unwrap();
@@ -904,7 +915,7 @@ pub fn check_balance(rpc_client: &RpcClient, project_config: &ProjectConfig) {
     info!("Total Balance: {:?} SOL", lamports_to_sol(total_balance));
 }
 
-pub fn check_wsol_balance(rpc_client: &RpcClient, project_config: &ProjectConfig) {
+pub fn check_wsol_balance(rpc_client: &RpcClient, project_config: &ProjectConfig) -> u64 {
     let mut total_balance = 0u64;
     for wallet in project_config.wsol_wallets.iter() {
         let key = Keypair::from_base58_string(&wallet);
@@ -936,6 +947,8 @@ pub fn check_wsol_balance(rpc_client: &RpcClient, project_config: &ProjectConfig
     }
 
     info!("Total Balance: {:?} SOL", lamports_to_sol(total_balance));
+
+    total_balance
 }
 
 pub async fn revoke_mint_authority(rpc_client: &RpcClient, payer: &Keypair, project_config: &ProjectConfig) {
