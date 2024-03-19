@@ -1,4 +1,5 @@
 use std::str::FromStr;
+use colored::Colorize;
 use log::{debug, error, info};
 use solana_client::rpc_client::RpcClient;
 use solana_client::rpc_config::RpcSendTransactionConfig;
@@ -119,7 +120,7 @@ pub fn get_or_create_token_account(
 
         match rpc_client.send_and_confirm_transaction(&transaction) {
             Ok(s) => {
-                info!("Create Token Account Tx: {:?}", s);
+                info!("Create Token Account Tx: {}", s.to_string().bold().green());
             }
             Err(e) => {
                 panic!("Error creating token account: {:?}", e)
@@ -193,7 +194,7 @@ pub fn buy(
         min_context_slot: None,
     }) {
         Ok(s) => {
-            info!("Buy Tx: {:?}", s);
+            info!("Buy Tx: {}", s.to_string().bold().green());
         }
         Err(e) => {
             error!("{:?}", e);
@@ -270,7 +271,7 @@ pub fn sell(rpc_client: &RpcClient,
         min_context_slot: None,
     }) {
         Ok(s) => {
-            info!("Sell Tx: {:?}", s);
+            info!("Sell Tx: {}", s.to_string().bold().green());
         }
         Err(e) => {
             error!("{:?}", e);

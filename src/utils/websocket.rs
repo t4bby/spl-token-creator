@@ -1,8 +1,10 @@
 use crate::dex::raydium::layout::MarketStateLayoutV3;
 use std::sync::{Arc, Mutex};
 use borsh::BorshDeserialize;
+use colored::Colorize;
 use log::{debug, error, info};
 use serde_json::{json, Value};
+use solana_program::native_token::lamports_to_sol;
 use solana_program::pubkey::Pubkey;
 use solana_sdk::genesis_config::ClusterType;
 use tungstenite::Message;
@@ -23,7 +25,6 @@ pub struct PoolChunk {
 #[derive(Debug, Clone)]
 pub struct WebSocketClient {
     wss_url: String,
-    http_url: String,
 }
 
 #[derive(Debug, Clone)]
@@ -36,10 +37,125 @@ pub struct TaskConfig {
 }
 
 impl WebSocketClient {
-    pub fn new(wss_url: &str, http_url: &str) -> WebSocketClient {
+    pub fn new(wss_url: &str) -> WebSocketClient {
         WebSocketClient {
             wss_url: wss_url.to_string(),
-            http_url: http_url.to_string(),
+        }
+    }
+
+    pub fn monitor_price_changes(&self, address: &str) {
+        let url = Url::parse(&self.wss_url).unwrap();
+        let (mut socket, _response) = tungstenite::connect(url).unwrap();
+        info!("monitor_account: Connected to the server");
+
+        let params = json!({
+        "encoding": "base64",
+        "commitment": "confirmed",
+        "transactionDetails": "accounts",
+        "maxSupportedTransactionVersion": 0,
+        "showRewards": false
+        });
+
+        let account_param = json!({
+         "mentionsAccountOrProgram": address
+        });
+
+        socket.send(
+            Message::Binary(
+                serde_json::to_vec(
+                    &json!(
+                   {
+                       "jsonrpc": "2.0",
+                       "id": 1,
+                       "method": "blockSubscribe",
+                       "params": json!([account_param, params])
+                   }
+               )
+                ).unwrap()
+            )
+        ).unwrap();
+
+
+        let mut price_change = 0i64;
+        loop {
+            match socket.read() {
+                Ok(e) => {
+                    debug!("monitor_account: {:?}", e);
+                    let parsed: Value = match serde_json::from_str(e.to_text().unwrap()) {
+                        Ok(a) => a,
+                        Err(_) => {
+                            continue;
+                        }
+                    };
+
+                    match parsed.get("params") {
+                        None => {}
+                        Some(a) => {
+                            let result = a.get("result").unwrap();
+                            let value = result.get("value").unwrap();
+                            let block = value.get("block").unwrap();
+                            let transactions = block.get("transactions")
+                                                    .unwrap().as_array().unwrap();
+
+                            for transaction in transactions.iter() {
+                                let meta = transaction.get("meta").unwrap();
+                                let err = meta.get("err").unwrap();
+                                if err.is_null() == false {
+                                    continue;
+                                }
+                                let pre_balances = meta.get("preBalances")
+                                                       .unwrap()
+                                                       .as_array()
+                                                       .unwrap();
+
+
+                                let mut pre_balances_vec = vec![];
+                                for balance in pre_balances.iter() {
+                                    pre_balances_vec.push(balance.as_u64().unwrap());
+                                }
+
+                                let post_balances = meta.get("postBalances")
+                                                        .unwrap()
+                                                        .as_array().unwrap();
+
+                                let mut post_balances_vec = vec![];
+                                for balance in post_balances.iter() {
+                                    post_balances_vec.push(balance.as_u64().unwrap());
+                                }
+
+                                if pre_balances_vec.is_empty() || post_balances_vec.is_empty() {
+                                    continue;
+                                }
+
+                                let balance_change = pre_balances_vec[0] as i64 - post_balances_vec[0] as i64;
+                                price_change += balance_change;
+
+                                if balance_change < 0 {
+                                    info!("SELL: {} SOL", lamports_to_sol(balance_change.abs() as u64).to_string().red());
+                                } else {
+                                    info!("BUY: {} SOL", lamports_to_sol(balance_change as u64).to_string().green());
+                                }
+
+                                let transaction_info = transaction.get("transaction").unwrap();
+                                let sigs = transaction_info.get("signatures").unwrap().as_array().unwrap();
+                                for sig in sigs.iter() {
+                                    info!("Signature: {}", sig.as_str().unwrap());
+                                }
+
+                                if price_change < 0 {
+                                    info!("Price Change: -{} SOL", lamports_to_sol(price_change.abs() as u64).to_string().red());
+                                } else {
+                                    info!("Price Change: {} SOL", lamports_to_sol(price_change.abs() as u64).to_string().green());
+                                }
+                            }
+                        }
+                    }
+                }
+                Err(e) => {
+                    error!("{:?}", e);
+                    break;
+                }
+            }
         }
     }
 

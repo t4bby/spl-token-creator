@@ -1,5 +1,6 @@
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
+use colored::Colorize;
 use config_file::FromConfigFile;
 use log::{debug, error, info};
 use solana_client::rpc_client::RpcClient;
@@ -268,7 +269,7 @@ pub async fn create_token(
             &project_image
         ).await {
             Ok(a) => {
-                info!("Uploaded image: {:?}", a);
+                info!("Uploaded image: https://{}.ipfs.nftstorage.link", a);
                 a
             }
             Err(e) => {
@@ -282,7 +283,9 @@ pub async fn create_token(
             &project_config.name,
             &project_config.symbol,
             &project_config.description,
-            &format!("https://{}.ipfs.nftstorage.link", image_cid)
+            &format!("https://{}.ipfs.nftstorage.link", image_cid),
+            &project_config.tags,
+            &project_config.telegram
         ) {
             Ok(_) => {}
             Err(e) => {
@@ -295,7 +298,7 @@ pub async fn create_token(
             &project_metadata
         ).await {
             Ok(a) => {
-                info!("Uploaded metadata: {:?}", a);
+                info!("Uploaded metadata: https://{}.ipfs.nftstorage.link", a);
                 a
             }
             Err(e) => {
@@ -322,7 +325,6 @@ pub async fn create_token(
         info!("Airdropping to wallets");
         spl::token::airdrop(&rpc_client, &keypair, &project_dir, project_config, percentage, false);
     }
-
 }
 
 pub async fn withdraw(
@@ -336,7 +338,7 @@ pub async fn withdraw(
         destination_pub = Pubkey::from_str(&destination.unwrap()).unwrap();
     }
 
-    info!("Withdrawing to: {}", destination_pub.to_string());
+    info!("Withdrawing to: {}", destination_pub.to_string().bold().green());
 
     spl::token::send(rpc_client, &destination_pub, project_config);
 }
@@ -396,7 +398,7 @@ pub async fn burn(
         mint_pub = Pubkey::from_str(&liquidity_config.lp_mint).unwrap()
     }
 
-    info!("Burning token: {}", mint_pub.to_string());
+    info!("Burning token: {}", mint_pub.to_string().green().bold());
     info!("Burn Percentage: {:?}", percentage);
 
     if burn_airdrop {
@@ -535,13 +537,12 @@ pub async fn auto_sell(
     }
 
     info!("Auto selling");
-    info!("Base Mint: {:?}", base_mint_pub);
-    info!("Quote Mint: {:?}", quote_mint_pub);
-    info!("Interval: {:?}", interval);
-    info!("Percentage: {:?}", percent);
+    info!("Base Mint: {}", mint.green().bold());
+    info!("Quote Mint: {}", quote_mint.green().bold());
+    info!("Interval: {}", interval.to_string().green().bold());
+    info!("Percentage: {}", percent.to_string().green().bold());
 
-    let ws = utils::websocket::WebSocketClient::new(&config.wss_url.clone(),
-                                                    &config.rpc_url.clone());
+    let ws = utils::websocket::WebSocketClient::new(&config.wss_url.clone());
 
     let pool_data_sync = Arc::new(
         Mutex::new(utils::websocket::PoolChunk {
@@ -598,7 +599,7 @@ pub async fn auto_sell(
         }
 
         for wallet in wallets.iter() {
-            info!("Selling wallet: {:?}", wallet.wallet);
+            info!("Selling wallet: {:?}", wallet.wallet.green().bold());
             swap::sell(
                 &connection,
                 &wallet,
@@ -650,8 +651,8 @@ pub async fn sell(rpc_client: &RpcClient,
         }
     };
 
-    info!("Selling token: {}", base_mint_pub.to_string());
-    info!("Percent: {:?}", percent);
+    info!("Selling token: {}", base_mint.green().bold());
+    info!("Percent: {}", percent.to_string().green().bold());
 
     let (mut wsol_token_account, wsol_account_instruction) = spl::get_token_account(
         &rpc_client,
@@ -710,8 +711,8 @@ pub async fn buy(rpc_client: &RpcClient,
     let base_mint_pub = Pubkey::from_str(base_mint).unwrap();
     let quote_mint_pub = Pubkey::from_str(quote_mint).unwrap();
 
-    info!("Buying token: {}", base_mint_pub.to_string());
-    info!("Amount: {:?}", amount);
+    info!("Buying token: {}", base_mint.green().bold());
+    info!("Amount: {}", amount.to_string().green().bold());
 
     let balance = rpc_client.get_balance(&payer.pubkey()).unwrap();
     info!("Wallet Balance: {:?} SOL", lamports_to_sol(balance));
@@ -742,7 +743,8 @@ pub async fn buy(rpc_client: &RpcClient,
             info!("WSOL Account has sufficient balance to buy token");
         } else {
             if enough_balance == false {
-                error!("Insufficient balance to buy token. Requires at least {} SOL", amount + 0.00011);
+                error!("Insufficient balance to buy token. Requires at least {} SOL",
+                    (amount + 0.00011).to_string().red());
                 return;
             }
 
@@ -777,8 +779,8 @@ pub async fn buy(rpc_client: &RpcClient,
         &base_mint_pub
     );
 
-    info!("Token Account: {}", token_account.to_string());
-    info!("WSOL Token Account: {}", wsol_token_account.to_string());
+    info!("Token Account: {}", token_account.to_string().green().bold());
+    info!("WSOL Token Account: {}", wsol_token_account.to_string().green().bold());
     info!("Will Create New Token ATA: {}", create_token_account_instruction.is_some());
 
     let wallet_information = WalletInformation {
@@ -790,8 +792,7 @@ pub async fn buy(rpc_client: &RpcClient,
     };
 
     if wait {
-        let ws = utils::websocket::WebSocketClient::new(&config.wss_url.clone(),
-                                                        &config.rpc_url.clone());
+        let ws = utils::websocket::WebSocketClient::new(&config.wss_url.clone());
 
         let pool_data_sync = Arc::new(
             Mutex::new(utils::websocket::PoolChunk {
@@ -901,7 +902,9 @@ pub fn check_balance(rpc_client: &RpcClient, payer: Option<&Keypair>, project_co
             let key = payer.unwrap();
             let balance = rpc_client.get_balance(&key.pubkey()).unwrap();
             total_balance += balance;
-            info!("Wallet: {:?} Balance: {:?} SOL", key.pubkey(), lamports_to_sol(balance));
+            info!("Wallet: {:?} Balance: {:?} SOL",
+                key.pubkey().to_string().green().bold(),
+                lamports_to_sol(balance).to_string().green().bold());
         }
         total_balance += check_wsol_balance(rpc_client, project_config);
     }
@@ -910,9 +913,12 @@ pub fn check_balance(rpc_client: &RpcClient, payer: Option<&Keypair>, project_co
         let key = Keypair::from_base58_string(&wallet);
         let balance = rpc_client.get_balance(&key.pubkey()).unwrap();
         total_balance += balance;
-        info!("Wallet: {:?} Balance: {:?} SOL", key.pubkey(), lamports_to_sol(balance));
+        info!("Wallet: {} Balance: {} SOL", key.pubkey().to_string().green().bold(),
+            lamports_to_sol(balance).to_string().green().bold());
     }
-    info!("Total Balance: {:?} SOL", lamports_to_sol(total_balance));
+
+    info!("Total Balance: {:?} SOL",
+        lamports_to_sol(total_balance).to_string().green().bold());
 }
 
 pub fn check_wsol_balance(rpc_client: &RpcClient, project_config: &ProjectConfig) -> u64 {
@@ -943,10 +949,12 @@ pub fn check_wsol_balance(rpc_client: &RpcClient, project_config: &ProjectConfig
         }
 
         total_balance += balance;
-        info!("WSOL Wallet: {:?} Balance: {:?} SOL", key.pubkey(), lamports_to_sol(balance));
+        info!("WSOL Wallet: {:?} Balance: {:?} SOL",
+            key.pubkey().to_string().green().bold(),
+            lamports_to_sol(balance).to_string().green().bold());
     }
 
-    info!("Total Balance: {:?} SOL", lamports_to_sol(total_balance));
+    info!("Total Balance: {:?} SOL", lamports_to_sol(total_balance).to_string().green().bold());
 
     total_balance
 }
@@ -984,4 +992,10 @@ pub async fn create_wsol(rpc_client: &RpcClient, project_dir: &str,
             }
         }
     }
+}
+
+pub async fn monitor_account(wss_url: &str, address: &str) {
+    info!("Monitoring account changes for {}", address.bold().green());
+    let ws = utils::websocket::WebSocketClient::new(&wss_url);
+    ws.monitor_price_changes(address);
 }

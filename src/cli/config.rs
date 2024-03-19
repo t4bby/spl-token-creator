@@ -19,6 +19,8 @@ pub struct ProjectConfig {
     pub name: String,
     pub symbol: String,
     pub description: String,
+    pub telegram: Option<String>,
+    pub tags: Option<Vec<String>>,
     pub mint_amount: u64,
     pub decimal: u8,
     pub image_filename: String,

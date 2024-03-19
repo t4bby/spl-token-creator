@@ -117,6 +117,13 @@ pub enum Commands {
         all: bool,
     },
 
+    /// Monitor Account Change
+    MonitorAccount {
+        /// Monitor using websocket if the account changes
+        #[arg(short = 'a', long)]
+        address: String,
+    },
+
     /// Revoke the token mint authority
     RevokeAuthority {},
 

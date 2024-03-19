@@ -1,3 +1,4 @@
+use colored::Colorize;
 use log::{debug, error, info};
 use solana_client::rpc_client::{RpcClient};
 use solana_client::rpc_config::RpcSendTransactionConfig;
@@ -122,7 +123,7 @@ pub fn revoke_mint_authority(rpc_client: &RpcClient,
 
     match rpc_client.send_and_confirm_transaction(&transaction) {
         Ok(s) => {
-            info!("Revoke Mint Authority Tx: {:?}", s);
+            info!("Revoke Mint Authority Tx: {}", s.to_string().bold().green());
         }
         Err(e) => {
             panic!("Error: {:?}", e);
@@ -160,8 +161,8 @@ pub fn create(rpc_client: &RpcClient,
     match rpc_client.send_and_confirm_transaction(&transaction) {
         Ok(a) => {
             info!("Token created");
-            info!("Token address: {:?}", token_keypair.pubkey());
-            info!("Tx: {:?}", a);
+            info!("Token address: {}", token_keypair.pubkey().to_string().bold().green());
+            info!("Token Creation Tx: {}", a.to_string().bold().green());
         }
         Err(e) => {
             panic!("Error creating token: {:?}", e);
@@ -259,7 +260,7 @@ pub fn airdrop(rpc_client: &RpcClient, payer: &Keypair, project_dir: &str,
 
         match rpc_client.send_and_confirm_transaction(&transaction, ) {
             Ok(s) => {
-                info!("Airdrop Tx: {:?}", s);
+                info!("Airdrop Tx: {}", s.to_string().bold().green());
             }
             Err(e) => {
                 panic!("Error: {:?}", e);
@@ -319,7 +320,7 @@ pub fn close_wsol_account(
 
     match rpc_client.send_and_confirm_transaction(&transaction) {
         Ok(s) => {
-            info!("Close WSOL Account Tx: {:?}", s);
+            info!("Close WSOL Account Tx: {}", s.to_string().bold().green());
         }
         Err(e) => {
             panic!("Error: {:?}", e);
@@ -355,8 +356,8 @@ pub fn create_wsol_account(
     if confirm {
         match rpc_client.send_and_confirm_transaction(&transaction) {
             Ok(s) => {
-                info!("WSOL Account: {:?}", wsol_keypair.pubkey());
-                info!("WSOL Account Creation Tx: {:?}", s);
+                info!("WSOL Account: {}", wsol_keypair.pubkey().to_string().bold().green());
+                info!("WSOL Account Creation Tx: {}", s.to_string().bold().green());
             }
             Err(e) => {
                 panic!("Error: {:?}", e);
@@ -372,8 +373,8 @@ pub fn create_wsol_account(
             min_context_slot: None,
         }) {
             Ok(s) => {
-                info!("WSOL Account: {:?}", wsol_keypair.pubkey());
-                info!("WSOL Account Creation Tx: {:?}", s);
+                info!("WSOL Account: {}", wsol_keypair.pubkey().to_string().bold().green());
+                info!("WSOL Account Creation Tx: {}", s.to_string().bold().green());
             }
             Err(e) => {
                 panic!("Error: {:?}", e);
@@ -458,7 +459,7 @@ pub fn burn(rpc_client: &RpcClient,
 
     match rpc_client.send_and_confirm_transaction(&transaction) {
         Ok(s) => {
-            info!("Burn Tx: {:?}", s);
+            info!("Burn Tx: {}", s.to_string().bold().green());
         }
         Err(e) => {
             panic!("Error: {:?}", e);
@@ -535,7 +536,7 @@ pub fn send(rpc_client: &RpcClient,
             min_context_slot: None,
         }) {
             Ok(s) => {
-                info!("Send Tx: {:?}", s);
+                info!("Send Tx: {}", s.to_string().bold().green());
             }
             Err(e) => {
                 error!("Error: {:?}", e);

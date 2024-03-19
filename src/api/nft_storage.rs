@@ -1,4 +1,5 @@
 use std::fs::File;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use solana_client::client_error::reqwest;
 use thiserror::Error;
@@ -17,6 +18,18 @@ pub enum UploadError {
     ParseError(String),
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Metadata {
+    pub name: String,
+    pub symbol: String,
+    pub description: String,
+    pub reputation: String,
+    pub image: String,
+    pub icon: String,
+    pub tags: Option<Vec<String>>,
+    pub telegram: Option<String>,
+}
 
 #[derive(Debug, Error)]
 pub enum MetadataError {
@@ -24,15 +37,28 @@ pub enum MetadataError {
     GenerateError(String),
 }
 
-pub fn generate_metadata(project_dir: &str, name: &str, symbol: &str, description: &str, image: &str) -> Result<(), MetadataError> {
-    let metadata = format!(
-        r#"{{"name": "{}", "symbol": "{}", "description": "{}", "image": "{}"}}"#,
-        name, symbol, description, image
-    );
+pub fn generate_metadata(project_dir: &str,
+                         name: &str,
+                         symbol: &str,
+                         description: &str,
+                         image: &str,
+                         tags: &Option<Vec<String>>,
+                         telegram: &Option<String>,
+) -> Result<(), MetadataError> {
+    let metadata = Metadata {
+        name: name.to_string(),
+        symbol: symbol.to_string(),
+        description: description.to_string(),
+        reputation: "ok".to_string(),
+        image: image.to_string(),
+        icon: image.to_string(),
+        tags: tags.clone(),
+        telegram: telegram.clone(),
+    };
 
     let metadata_path = format!("{}/metadata.json", project_dir);
 
-    match std::fs::write(&metadata_path, metadata) {
+    match std::fs::write(&metadata_path, serde_json::to_string(&metadata).unwrap()) {
         Ok(_) => Ok(()),
         Err(e) => Err(MetadataError::GenerateError(e.to_string()))
     }

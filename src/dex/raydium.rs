@@ -5,6 +5,7 @@ pub mod swap;
 
 use std::str::FromStr;
 use std::time::UNIX_EPOCH;
+use colored::Colorize;
 use log::{error, info};
 use solana_client::rpc_client::RpcClient;
 use solana_client::rpc_config::RpcSendTransactionConfig;
@@ -170,11 +171,11 @@ pub async fn remove_liquidity(rpc_client: &RpcClient,
     let mut instructions: Vec<Instruction> = vec![];
 
     instructions.push(
-        solana_sdk::compute_budget::ComputeBudgetInstruction::set_compute_unit_limit(200000)
+        solana_sdk::compute_budget::ComputeBudgetInstruction::set_compute_unit_price(25000)
     );
 
     instructions.push(
-        solana_sdk::compute_budget::ComputeBudgetInstruction::set_compute_unit_price(100000)
+        solana_sdk::compute_budget::ComputeBudgetInstruction::set_compute_unit_limit(5000000)
     );
 
     let balance_needed = rpc_client.get_minimum_balance_for_rent_exemption(165).unwrap();
@@ -278,7 +279,7 @@ pub async fn remove_liquidity(rpc_client: &RpcClient,
         min_context_slot: None,
     }) {
         Ok(s) => {
-            info!("Liquidity Remove Tx: {:?}", s);
+            info!("Liquidity Remove Tx: {}", s.to_string().bold().green());
         }
         Err(e) => {
             error!("Error: {:?}", e);
@@ -322,12 +323,13 @@ pub async fn add_liquidity(rpc_client: &RpcClient,
     let wsol_pub = &spl_token::native_mint::id();
 
     let mut instructions: Vec<Instruction> = vec![];
+
     instructions.push(
-        solana_sdk::compute_budget::ComputeBudgetInstruction::set_compute_unit_limit(200000)
+        solana_sdk::compute_budget::ComputeBudgetInstruction::set_compute_unit_price(25000)
     );
 
     instructions.push(
-        solana_sdk::compute_budget::ComputeBudgetInstruction::set_compute_unit_price(100000)
+        solana_sdk::compute_budget::ComputeBudgetInstruction::set_compute_unit_limit(600000)
     );
 
     let (amm_id, _) = LiquidityPoolInfo::get_associated_id(program_id,
@@ -471,7 +473,7 @@ pub async fn add_liquidity(rpc_client: &RpcClient,
         min_context_slot: None,
     }) {
         Ok(s) => {
-            info!("Add Liquidity Tx: {:?}", s);
+            info!("Add Liquidity Tx: {}", s.to_string().bold().green());
         }
         Err(e) => {
             error!("Error: {:?}", e);

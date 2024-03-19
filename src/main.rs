@@ -12,7 +12,8 @@ use std::io::Write;
 use std::path::Path;
 use std::str::FromStr;
 use clap::Parser;
-use log::{debug, error, info};
+use colored::Colorize;
+use log::{debug, error, info, Level};
 use solana_client::rpc_client::RpcClient;
 use solana_sdk::signature::{Keypair, Signer};
 use config_file::{FromConfigFile};
@@ -29,10 +30,25 @@ async fn main() {
 
     let mut log_builder = Builder::new();
     log_builder.format(|buf, record| {
+        let level = record.level().clone();
+        let record_level: String;
+        match level {
+            Level::Error => {
+                record_level = "ERROR".red().to_string();
+            },
+            Level::Info => {
+                record_level = "INFO".green().to_string();
+            },
+            _ => {
+                record_level = "DEBUG".yellow().to_string();
+            }
+        }
+
+        let time = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
         writeln!(buf,
-                 "{} [{}] - {}",
-                 Local::now().format("%Y-%m-%d %H:%M:%S"),
-                 record.level(),
+                 "{} > {} : {}",
+                 time.blue(),
+                 record_level,
                  record.args()
         )
     });
@@ -72,6 +88,9 @@ async fn main() {
             Commands::Monitor { .. } => {
                 project_empty = true;
             },
+            Commands::MonitorAccount { .. } => {
+                project_empty = true;
+            },
             _ => {}
         }
     }
@@ -101,16 +120,27 @@ async fn main() {
         };
     }
 
-    let cluster_type = if args.dev {
-        ClusterType::Devnet
+    let cluster_type;
+    let cluster_type_string: String;
+    if args.dev {
+        cluster_type_string = "Devnet".yellow().bold().to_string();
+        cluster_type = ClusterType::Devnet
     } else {
-        ClusterType::MainnetBeta
+        cluster_type_string = "MainnetBeta".green().bold().to_string();
+        cluster_type = ClusterType::MainnetBeta
     };
 
-    info!("Cluster type: {:?}", cluster_type);
+    info!("Cluster type: {}", cluster_type_string);
 
     if project_empty {
         match args.command {
+            Commands::MonitorAccount { address } => {
+                cli::monitor_account(
+                    &config.wss_url,
+                    &address
+                ).await;
+                return;
+            },
             Commands::Monitor { ref mint } => {
                 tokio::task::block_in_place(|| {
                     let dex_screener = DexScreener::new();
@@ -211,6 +241,8 @@ async fn main() {
                     name: name.clone(),
                     symbol,
                     description: contents,
+                    telegram: Some("".to_string()),
+                    tags: Some(vec![]),
                     mint_amount: mint,
                     decimal,
                     image_filename: icon.clone(),
@@ -459,7 +491,6 @@ async fn main() {
                 &project_config,
             );
         },
-
 
         Commands::CreateWsol { amount, skip_confirm } => {
             cli::create_wsol(
