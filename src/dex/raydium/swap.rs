@@ -187,13 +187,8 @@ pub fn buy(
     );
 
     info!("Sending transaction");
-    match rpc_client.send_transaction_with_config(&transaction, RpcSendTransactionConfig {
-        skip_preflight: true,
-        preflight_commitment: None,
-        encoding: None,
-        max_retries: None,
-        min_context_slot: None,
-    }) {
+    match rpc_client.send_and_confirm_transaction_with_spinner_and_commitment(&transaction,
+                                                                              CommitmentConfig::processed()) {
         Ok(s) => {
             info!("Buy Tx: {}", s.to_string().bold().green());
         }

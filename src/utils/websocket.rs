@@ -3,6 +3,7 @@ use std::sync::{Arc, Mutex};
 use borsh::BorshDeserialize;
 use colored::Colorize;
 use log::{debug, error, info};
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use solana_program::native_token::lamports_to_sol;
 use solana_program::pubkey::Pubkey;
@@ -10,6 +11,7 @@ use solana_sdk::genesis_config::ClusterType;
 use tungstenite::Message;
 use url::Url;
 use crate::dex;
+use crate::dex::raydium;
 use crate::dex::raydium::layout::LiquidityStateLayoutV4;
 use crate::dex::raydium::pool::LiquidityPoolInfo;
 use crate::spl::token::WalletInformation;
@@ -34,6 +36,61 @@ pub struct TaskConfig {
     pub rpc_url: String,
     pub buy_amount: f64,
     pub overhead: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct UiTokenAmmount {
+    pub amount: String,
+    pub decimals: u8,
+    pub ui_amount: f64,
+    pub ui_amount_string: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct TokenBalance {
+    pub account_index: u64,
+    pub mint: String,
+    pub owner: String,
+    pub program_id: String,
+    pub ui_token_amount: UiTokenAmmount,
+}
+
+impl TokenBalance {
+    pub fn parse(value: &Value) -> Self {
+        let account_index = value.get("accountIndex").unwrap().as_u64().unwrap();
+        let mint = value.get("mint").unwrap().as_str().unwrap();
+        let owner = value.get("owner").unwrap().as_str().unwrap();
+        let program_id = value.get("programId").unwrap().as_str().unwrap();
+        let ui_token_amount = value.get("uiTokenAmount").unwrap();
+        let amount = ui_token_amount.get("amount").unwrap().as_str().unwrap();
+        let decimals = ui_token_amount.get("decimals").unwrap().as_u64().unwrap() as u8;
+        let ui_amount = match ui_token_amount.get("uiAmount") {
+            None => 0f64,
+            Some(a) => {
+                if a.is_null() {
+                    0f64
+                } else {
+                    a.as_f64().unwrap()
+                }
+            }
+        };
+        let ui_amount_string = ui_token_amount.get("uiAmountString").unwrap().as_str().unwrap();
+
+        TokenBalance {
+            account_index,
+            mint: mint.to_string(),
+            owner: owner.to_string(),
+            program_id: program_id.to_string(),
+            ui_token_amount: UiTokenAmmount {
+                amount: amount.to_string(),
+                decimals,
+                ui_amount,
+                ui_amount_string: ui_amount_string.to_string(),
+            },
+        }
+    }
 }
 
 impl WebSocketClient {
@@ -103,49 +160,83 @@ impl WebSocketClient {
                                 if err.is_null() == false {
                                     continue;
                                 }
-                                let pre_balances = meta.get("preBalances")
+                                // std::fs::write("transaction_block.json", a.to_string()).unwrap();
+
+                                let pre_balances = meta.get("preTokenBalances")
                                                        .unwrap()
                                                        .as_array()
                                                        .unwrap();
 
-
-                                let mut pre_balances_vec = vec![];
+                                let mut pre_token_balance: Vec<TokenBalance> = vec![];
+                                let mut post_token_balance: Vec<TokenBalance> = vec![];
                                 for balance in pre_balances.iter() {
-                                    pre_balances_vec.push(balance.as_u64().unwrap());
+                                    pre_token_balance.push(TokenBalance::parse(&balance));
                                 }
 
-                                let post_balances = meta.get("postBalances")
+                                let post_balances = meta.get("postTokenBalances")
                                                         .unwrap()
                                                         .as_array().unwrap();
-
-                                let mut post_balances_vec = vec![];
                                 for balance in post_balances.iter() {
-                                    post_balances_vec.push(balance.as_u64().unwrap());
-                                }
-
-                                if pre_balances_vec.is_empty() || post_balances_vec.is_empty() {
-                                    continue;
-                                }
-
-                                let balance_change = pre_balances_vec[0] as i64 - post_balances_vec[0] as i64;
-                                price_change += balance_change;
-
-                                if balance_change < 0 {
-                                    info!("SELL: {} SOL", lamports_to_sol(balance_change.abs() as u64).to_string().red());
-                                } else {
-                                    info!("BUY: {} SOL", lamports_to_sol(balance_change as u64).to_string().green());
+                                    post_token_balance.push(TokenBalance::parse(&balance));
                                 }
 
                                 let transaction_info = transaction.get("transaction").unwrap();
+                                let account_keys = transaction_info.get("accountKeys").unwrap().as_array().unwrap();
+
+                                let mut is_raydium_program_transaction = false;
+                                for key in account_keys.iter() {
+                                    let pub_key = key.get("pubkey").unwrap().as_str().unwrap();
+                                    if pub_key == raydium::AMM_PROGRAM_ID || pub_key == raydium::AMM_PROGRAM_DEV_ID {
+                                        is_raydium_program_transaction = true;
+                                        break;
+                                    }
+                                }
+
+                                if is_raydium_program_transaction == false {
+                                    continue;
+                                }
+
+                                for token in pre_token_balance.iter() {
+                                    for post_token in post_token_balance.iter() {
+                                        if token.owner == raydium::AUTORITY_ID
+                                            && post_token.owner == raydium::AUTORITY_ID {
+                                            if token.mint == spl_token::native_mint::id().to_string()
+                                                && post_token.mint == spl_token::native_mint::id().to_string() {
+                                                debug!("Pre Token: {}", token.mint);
+                                                debug!("Pre Address: {}", token.owner);
+
+                                                debug!("Post Token: {}", post_token.mint);
+                                                debug!("Post Address: {}", post_token.owner);
+
+                                                let pre_amount: u64 = token.ui_token_amount.amount.parse().unwrap();
+                                                debug!("Pre Amount: {}", lamports_to_sol(pre_amount).to_string().red());
+
+                                                let post_amount: u64 = post_token.ui_token_amount.amount.parse().unwrap();
+                                                debug!("Post Amount: {}", lamports_to_sol(post_amount).to_string().green());
+
+                                                let balance = post_amount as i64 - pre_amount as i64;
+                                                if balance > 0 {
+                                                    info!("[BUY] Balance: {}", lamports_to_sol(balance.abs() as u64));
+                                                    price_change += balance;
+                                                    break;
+                                                }
+                                                info!("[SELL] Balance: -{}", lamports_to_sol(balance.abs() as u64));
+                                                price_change -= balance;
+                                                break;
+                                            }
+                                        }
+                                    }
+                                }
+
                                 let sigs = transaction_info.get("signatures").unwrap().as_array().unwrap();
                                 for sig in sigs.iter() {
                                     info!("Signature: {}", sig.as_str().unwrap());
                                 }
 
-                                if price_change < 0 {
-                                    info!("Price Change: -{} SOL", lamports_to_sol(price_change.abs() as u64).to_string().red());
-                                } else {
+                                if price_change > 0 {
                                     info!("Price Change: {} SOL", lamports_to_sol(price_change.abs() as u64).to_string().green());
+                                } else {
+                                    info!("Price Change: -{} SOL", lamports_to_sol(price_change.abs() as u64).to_string().red());
                                 }
                             }
                         }

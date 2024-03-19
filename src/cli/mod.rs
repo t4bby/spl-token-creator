@@ -718,8 +718,9 @@ pub async fn buy(rpc_client: &RpcClient,
     info!("Wallet Balance: {:?} SOL", lamports_to_sol(balance));
 
     let mut wsol_token_account;
+    let create_token_account_instruction;
     if skip == false {
-        (wsol_token_account, _) = spl::get_token_account(
+        (wsol_token_account, create_token_account_instruction) = spl::get_token_account(
             &rpc_client,
             &payer.pubkey(),
             &payer.pubkey(),
@@ -748,14 +749,17 @@ pub async fn buy(rpc_client: &RpcClient,
                 return;
             }
 
-            info!("Insufficient balance to buy token. Closing and creating Creating WSOL account");
+            if create_token_account_instruction.is_some() {
+                info!("Creating WSOL account");
+            } else {
+                info!("Closing WSOL account and creating a new one");
+                spl::token::close_wsol_account(
+                    &rpc_client,
+                    &payer,
+                    &wsol_token_account.clone());
+            }
 
-            spl::token::close_wsol_account(
-                &rpc_client,
-                &payer,
-                &wsol_token_account.clone());
-
-            (wsol_token_account, _) = spl::token::create_wsol_account(
+            (wsol_token_account, _) = create_wsol_account(
                 &rpc_client,
                 &payer,
                 amount + 0.00011,
