@@ -451,6 +451,14 @@ async fn main() {
             );
         },
 
+        Commands::BalanceWsol {} => {
+            cli::check_wsol_balance(
+                &rpc_client,
+                &project_config,
+            );
+        },
+
+
         Commands::CreateWsol { amount, skip_confirm } => {
             cli::create_wsol(
                 &rpc_client,

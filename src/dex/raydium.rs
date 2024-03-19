@@ -4,6 +4,7 @@ pub mod pool;
 pub mod swap;
 
 use std::str::FromStr;
+use std::time::UNIX_EPOCH;
 use log::{error, info};
 use solana_client::rpc_client::RpcClient;
 use solana_client::rpc_config::RpcSendTransactionConfig;
@@ -411,9 +412,13 @@ pub async fn add_liquidity(rpc_client: &RpcClient,
         balance = (b.ui_amount.unwrap() * 10f64.powf(decimal as f64)) as u64;
     }
 
+    let now = std::time::SystemTime::now();
+    let since_epoch = now.duration_since(UNIX_EPOCH).expect("Time went backwards");
+    let seconds = since_epoch.as_secs();
+
     instructions.push(
         make_create_pool_v4_instruction(
-            &Pubkey::from_str(dex::raydium::AMM_PROGRAM_DEV_ID).unwrap(),
+            &Pubkey::from_str(AMM_PROGRAM_DEV_ID).unwrap(),
             &amm_id,
             &amm_authority,
             &amm_open_orders,
@@ -433,7 +438,7 @@ pub async fn add_liquidity(rpc_client: &RpcClient,
                 &lp_mint
             ),
             nonce,
-            0,
+            seconds,
             balance,
             amount,
             &amm_config_id,

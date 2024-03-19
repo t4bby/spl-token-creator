@@ -268,6 +268,10 @@ pub enum Commands {
         mint: String
     },
 
+    /// Check WSOL Balance
+    BalanceWsol {
+    },
+
     /// Auto sell the airdropped token when liquidity pool is added
     AutoSell {
         /// Token Mint

@@ -904,6 +904,40 @@ pub fn check_balance(rpc_client: &RpcClient, project_config: &ProjectConfig) {
     info!("Total Balance: {:?} SOL", lamports_to_sol(total_balance));
 }
 
+pub fn check_wsol_balance(rpc_client: &RpcClient, project_config: &ProjectConfig) {
+    let mut total_balance = 0u64;
+    for wallet in project_config.wsol_wallets.iter() {
+        let key = Keypair::from_base58_string(&wallet);
+
+        let mut balance: u64 = 0u64;
+        let mut tries: u64 = 0u64;
+        loop {
+            if tries >= 5 {
+                break;
+            }
+
+            let b = match rpc_client.get_token_account_balance(&key.pubkey()) {
+                Ok(a) => a,
+                Err(_) => {
+                    break;
+                }
+            };
+
+            let decimal = b.decimals;
+            balance = (b.ui_amount.unwrap() * 10f64.powf(decimal as f64)) as u64;
+            if balance > 1 {
+                break;
+            }
+            tries += 1;
+        }
+
+        total_balance += balance;
+        info!("WSOL Wallet: {:?} Balance: {:?} SOL", key.pubkey(), lamports_to_sol(balance));
+    }
+
+    info!("Total Balance: {:?} SOL", lamports_to_sol(total_balance));
+}
+
 pub async fn revoke_mint_authority(rpc_client: &RpcClient, payer: &Keypair, project_config: &ProjectConfig) {
     info!("Revoking mint authority of {}", project_config.name);
     spl::token::revoke_mint_authority(&rpc_client, &payer, &project_config);
