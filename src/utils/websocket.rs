@@ -137,7 +137,6 @@ impl WebSocketClient {
         loop {
             match socket.read() {
                 Ok(e) => {
-                    debug!("monitor_account: {:?}", e);
                     let parsed: Value = match serde_json::from_str(e.to_text().unwrap()) {
                         Ok(a) => a,
                         Err(_) => {
@@ -229,7 +228,7 @@ impl WebSocketClient {
 
                                 let sigs = transaction_info.get("signatures").unwrap().as_array().unwrap();
                                 for sig in sigs.iter() {
-                                    debug!("Signature: {}", sig.as_str().unwrap());
+                                    info!("Signature: {}", sig.as_str().unwrap());
                                 }
 
                                 info!("Total Liquidity: {} SOL", lamports_to_sol(price_change).to_string().green());
