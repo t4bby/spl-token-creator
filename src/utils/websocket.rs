@@ -213,17 +213,14 @@ impl WebSocketClient {
 
                                                 let post_amount: u64 = post_token.ui_token_amount.amount.parse().unwrap();
                                                 debug!("Post Amount: {}", lamports_to_sol(post_amount).to_string().green());
-
                                                 price_change = post_amount;
 
                                                 let balance = post_amount as i64 - pre_amount as i64;
                                                 if balance > 0 {
                                                     info!("[BUY] Balance: {}", lamports_to_sol(balance.abs() as u64));
-                                                    price_change += balance;
                                                     break;
                                                 }
                                                 info!("[SELL] Balance: -{}", lamports_to_sol(balance.abs() as u64));
-                                                price_change -= balance;
                                                 break;
                                             }
                                         }
