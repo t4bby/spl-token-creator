@@ -217,10 +217,10 @@ impl WebSocketClient {
 
                                                 let balance = post_amount as i64 - pre_amount as i64;
                                                 if balance > 0 {
-                                                    info!("[BUY] Balance: {}", lamports_to_sol(balance.abs() as u64));
+                                                    info!("[BUY] Liquidity: {} SOL", lamports_to_sol(balance.abs() as u64).to_string().green());
                                                     break;
                                                 }
-                                                info!("[SELL] Balance: -{}", lamports_to_sol(balance.abs() as u64));
+                                                info!("[SELL] Liquidity: -{} SOL", lamports_to_sol(balance.abs() as u64).to_string().red());
                                                 break;
                                             }
                                         }
@@ -229,10 +229,10 @@ impl WebSocketClient {
 
                                 let sigs = transaction_info.get("signatures").unwrap().as_array().unwrap();
                                 for sig in sigs.iter() {
-                                    info!("Signature: {}", sig.as_str().unwrap());
+                                    debug!("Signature: {}", sig.as_str().unwrap());
                                 }
 
-                                info!("Liquidity: {} SOL", lamports_to_sol(price_change).to_string().green());
+                                info!("Total Liquidity: {} SOL", lamports_to_sol(price_change).to_string().green());
                             }
                         }
                     }
