@@ -133,7 +133,7 @@ impl WebSocketClient {
         ).unwrap();
 
 
-        let mut price_change = 0i64;
+        let mut price_change = 0u64;
         loop {
             match socket.read() {
                 Ok(e) => {
@@ -214,6 +214,8 @@ impl WebSocketClient {
                                                 let post_amount: u64 = post_token.ui_token_amount.amount.parse().unwrap();
                                                 debug!("Post Amount: {}", lamports_to_sol(post_amount).to_string().green());
 
+                                                price_change = post_amount;
+
                                                 let balance = post_amount as i64 - pre_amount as i64;
                                                 if balance > 0 {
                                                     info!("[BUY] Balance: {}", lamports_to_sol(balance.abs() as u64));
@@ -233,11 +235,7 @@ impl WebSocketClient {
                                     info!("Signature: {}", sig.as_str().unwrap());
                                 }
 
-                                if price_change > 0 {
-                                    info!("Price Change: {} SOL", lamports_to_sol(price_change.abs() as u64).to_string().green());
-                                } else {
-                                    info!("Price Change: -{} SOL", lamports_to_sol(price_change.abs() as u64).to_string().red());
-                                }
+                                info!("Liquidity: {} SOL", lamports_to_sol(price_change).to_string().green());
                             }
                         }
                     }
