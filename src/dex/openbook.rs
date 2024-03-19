@@ -8,6 +8,7 @@ use solana_program::instruction::Instruction;
 use solana_program::message::{Message};
 use solana_program::native_token::LAMPORTS_PER_SOL;
 use solana_program::pubkey::Pubkey;
+use solana_sdk::commitment_config::CommitmentConfig;
 use solana_sdk::genesis_config::ClusterType;
 use solana_sdk::signature::{Keypair, Signature, SignerError};
 use solana_sdk::signer::Signer;
@@ -298,7 +299,8 @@ pub fn open_market(
         rpc_client.get_recent_blockhash().unwrap().0
     );
 
-    match rpc_client.send_and_confirm_transaction(&transaction) {
+    match rpc_client.send_and_confirm_transaction_with_spinner_and_commitment(&transaction,
+                                                                              CommitmentConfig::confirmed()) {
         Ok(s) => {
             info!("Create Vault Tx: {}", s.to_string().bold().green());
         }

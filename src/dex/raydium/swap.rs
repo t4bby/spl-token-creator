@@ -6,7 +6,7 @@ use solana_client::rpc_config::RpcSendTransactionConfig;
 use solana_program::instruction::{AccountMeta, Instruction};
 use solana_program::program_pack::Pack;
 use solana_program::pubkey::Pubkey;
-use solana_sdk::commitment_config::CommitmentLevel;
+use solana_sdk::commitment_config::{CommitmentConfig, CommitmentLevel};
 use solana_sdk::genesis_config::ClusterType;
 use solana_sdk::signature::{Keypair, Signer};
 use crate::dex::raydium::{AMM_PROGRAM_DEV_ID, AMM_PROGRAM_ID};
@@ -118,7 +118,8 @@ pub fn get_or_create_token_account(
             rpc_client.get_recent_blockhash().unwrap().0
         );
 
-        match rpc_client.send_and_confirm_transaction(&transaction) {
+        match rpc_client.send_and_confirm_transaction_with_spinner_and_commitment(&transaction,
+                                                                                  CommitmentConfig::confirmed()) {
             Ok(s) => {
                 info!("Create Token Account Tx: {}", s.to_string().bold().green());
             }

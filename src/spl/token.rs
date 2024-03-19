@@ -5,7 +5,7 @@ use solana_client::rpc_config::RpcSendTransactionConfig;
 use solana_program::instruction::Instruction;
 use solana_program::native_token::{lamports_to_sol, sol_to_lamports};
 use solana_program::pubkey::Pubkey;
-use solana_sdk::commitment_config::CommitmentLevel;
+use solana_sdk::commitment_config::{CommitmentConfig, CommitmentLevel};
 use solana_sdk::signature::Keypair;
 use solana_sdk::signer::Signer;
 use solana_sdk::transaction::Transaction;
@@ -121,7 +121,8 @@ pub fn revoke_mint_authority(rpc_client: &RpcClient,
         rpc_client.get_recent_blockhash().unwrap().0
     );
 
-    match rpc_client.send_and_confirm_transaction(&transaction) {
+    match rpc_client.send_and_confirm_transaction_with_spinner_and_commitment(&transaction,
+                                                                              CommitmentConfig::confirmed()) {
         Ok(s) => {
             info!("Revoke Mint Authority Tx: {}", s.to_string().bold().green());
         }
@@ -158,7 +159,8 @@ pub fn create(rpc_client: &RpcClient,
         rpc_client.get_recent_blockhash().unwrap().0
     );
 
-    match rpc_client.send_and_confirm_transaction(&transaction) {
+    match rpc_client.send_and_confirm_transaction_with_spinner_and_commitment(&transaction,
+                                                                              CommitmentConfig::confirmed()) {
         Ok(a) => {
             info!("Token created");
             info!("Token address: {}", token_keypair.pubkey().to_string().bold().green());
@@ -258,7 +260,8 @@ pub fn airdrop(rpc_client: &RpcClient, payer: &Keypair, project_dir: &str,
             rpc_client.get_recent_blockhash().unwrap().0
         );
 
-        match rpc_client.send_and_confirm_transaction(&transaction, ) {
+        match rpc_client.send_and_confirm_transaction_with_spinner_and_commitment(&transaction,
+                                                                                  CommitmentConfig::confirmed()) {
             Ok(s) => {
                 info!("Airdrop Tx: {}", s.to_string().bold().green());
             }
@@ -318,7 +321,8 @@ pub fn close_wsol_account(
         rpc_client.get_recent_blockhash().unwrap().0
     );
 
-    match rpc_client.send_and_confirm_transaction(&transaction) {
+    match rpc_client.send_and_confirm_transaction_with_spinner_and_commitment(&transaction,
+                                                                              CommitmentConfig::confirmed()) {
         Ok(s) => {
             info!("Close WSOL Account Tx: {}", s.to_string().bold().green());
         }
@@ -354,7 +358,8 @@ pub fn create_wsol_account(
 
     info!("Sending transaction");
     if confirm {
-        match rpc_client.send_and_confirm_transaction(&transaction) {
+        match rpc_client.send_and_confirm_transaction_with_spinner_and_commitment(&transaction,
+                                                                                  CommitmentConfig::confirmed()) {
             Ok(s) => {
                 info!("WSOL Account: {}", wsol_keypair.pubkey().to_string().bold().green());
                 info!("WSOL Account Creation Tx: {}", s.to_string().bold().green());
@@ -365,13 +370,13 @@ pub fn create_wsol_account(
         }
     } else {
         match rpc_client.send_transaction_with_config(&transaction,
-        RpcSendTransactionConfig {
-            skip_preflight: false,
-            preflight_commitment: Some(CommitmentLevel::Confirmed),
-            encoding: None,
-            max_retries: None,
-            min_context_slot: None,
-        }) {
+                                                      RpcSendTransactionConfig {
+                                                          skip_preflight: false,
+                                                          preflight_commitment: Some(CommitmentLevel::Confirmed),
+                                                          encoding: None,
+                                                          max_retries: None,
+                                                          min_context_slot: None,
+                                                      }) {
             Ok(s) => {
                 info!("WSOL Account: {}", wsol_keypair.pubkey().to_string().bold().green());
                 info!("WSOL Account Creation Tx: {}", s.to_string().bold().green());
@@ -457,7 +462,8 @@ pub fn burn(rpc_client: &RpcClient,
         rpc_client.get_recent_blockhash().unwrap().0
     );
 
-    match rpc_client.send_and_confirm_transaction(&transaction) {
+    match rpc_client.send_and_confirm_transaction_with_spinner_and_commitment(&transaction,
+                                                                              CommitmentConfig::confirmed()) {
         Ok(s) => {
             info!("Burn Tx: {}", s.to_string().bold().green());
         }
