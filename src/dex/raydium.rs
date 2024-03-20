@@ -421,7 +421,7 @@ pub async fn add_liquidity(rpc_client: &RpcClient,
 
     instructions.push(
         make_create_pool_v4_instruction(
-            &Pubkey::from_str(AMM_PROGRAM_DEV_ID).unwrap(),
+            &program_id,
             &amm_id,
             &amm_authority,
             &amm_open_orders,
