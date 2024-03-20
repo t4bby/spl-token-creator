@@ -12,7 +12,7 @@ use solana_client::rpc_config::RpcSendTransactionConfig;
 use solana_program::instruction::{AccountMeta, Instruction};
 use solana_program::native_token::LAMPORTS_PER_SOL;
 use solana_program::pubkey::Pubkey;
-use solana_sdk::commitment_config::CommitmentLevel;
+use solana_sdk::commitment_config::{CommitmentConfig, CommitmentLevel};
 use solana_sdk::genesis_config::ClusterType;
 use solana_sdk::signature::{Keypair, Signer};
 use crate::cli::config::{LiquidityConfig, MarketConfig, ProjectConfig};
@@ -272,13 +272,7 @@ pub async fn remove_liquidity(rpc_client: &RpcClient,
         rpc_client.get_recent_blockhash().unwrap().0
     );
 
-    match rpc_client.send_transaction_with_config(&transaction, RpcSendTransactionConfig {
-        skip_preflight: false,
-        preflight_commitment: Some(CommitmentLevel::Finalized),
-        encoding: None,
-        max_retries: None,
-        min_context_slot: None,
-    }) {
+    match rpc_client.send_and_confirm_transaction_with_spinner_and_commitment(&transaction, CommitmentConfig::processed()) {
         Ok(s) => {
             info!("Liquidity Remove Tx: {}", s.to_string().bold().green());
         }
@@ -466,13 +460,7 @@ pub async fn add_liquidity(rpc_client: &RpcClient,
         rpc_client.get_recent_blockhash().unwrap().0
     );
 
-    match rpc_client.send_transaction_with_config(&transaction, RpcSendTransactionConfig {
-        skip_preflight: false,
-        preflight_commitment: Some(CommitmentLevel::Finalized),
-        encoding: None,
-        max_retries: None,
-        min_context_slot: None,
-    }) {
+    match rpc_client.send_and_confirm_transaction_with_spinner_and_commitment(&transaction, CommitmentConfig::processed()) {
         Ok(s) => {
             info!("Add Liquidity Tx: {}", s.to_string().bold().green());
         }
