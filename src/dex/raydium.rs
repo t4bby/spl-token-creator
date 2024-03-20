@@ -172,11 +172,11 @@ pub async fn remove_liquidity(rpc_client: &RpcClient,
     let mut instructions: Vec<Instruction> = vec![];
 
     instructions.push(
-        solana_sdk::compute_budget::ComputeBudgetInstruction::set_compute_unit_price(25000)
+        solana_sdk::compute_budget::ComputeBudgetInstruction::set_compute_unit_price(773552)
     );
 
     instructions.push(
-        solana_sdk::compute_budget::ComputeBudgetInstruction::set_compute_unit_limit(5000000)
+        solana_sdk::compute_budget::ComputeBudgetInstruction::set_compute_unit_limit(500000)
     );
 
     let balance_needed = rpc_client.get_minimum_balance_for_rent_exemption(165).unwrap();
