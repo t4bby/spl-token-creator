@@ -104,6 +104,14 @@ pub fn revoke_mint_authority(rpc_client: &RpcClient,
 
     let mut instructions: Vec<Instruction> = vec![];
     instructions.push(
+        solana_sdk::compute_budget::ComputeBudgetInstruction::set_compute_unit_limit(200_000)
+    );
+
+    instructions.push(
+        solana_sdk::compute_budget::ComputeBudgetInstruction::set_compute_unit_price(200_000)
+    );
+
+    instructions.push(
         spl_token::instruction::set_authority(
             &spl_token::id(),
             &token_keypair.pubkey(),
