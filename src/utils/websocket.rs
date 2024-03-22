@@ -6,6 +6,7 @@ use colored::Colorize;
 use log::{debug, error, info};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use solana_client::rpc_client::RpcClient;
 use solana_program::native_token::{lamports_to_sol, sol_to_lamports};
 use solana_program::pubkey::Pubkey;
 use solana_sdk::genesis_config::ClusterType;
@@ -13,6 +14,7 @@ use tungstenite::Message;
 use url::Url;
 use crate::dex;
 use crate::dex::raydium;
+use crate::dex::raydium::error::RequestError;
 use crate::dex::raydium::layout::LiquidityStateLayoutV4;
 use crate::dex::raydium::pool::LiquidityPoolInfo;
 use crate::spl::token::WalletInformation;
@@ -144,7 +146,7 @@ impl WebSocketClient {
 
 
         let mut subscribed = false;
-        let mut subscription_id ;
+        let mut subscription_id;
         loop {
             match socket.read() {
                 Ok(e) => {
@@ -313,7 +315,7 @@ impl WebSocketClient {
                     for token in pre_token_balance.iter() {
                         for post_token in post_token_balance.iter() {
                             if (token.owner == raydium::AUTHORITY_ID && post_token.owner == raydium::AUTHORITY_ID) ||
-                                (token.owner == raydium::AUTHORITY_DEV_ID  && post_token.owner == raydium::AUTHORITY_DEV_ID) {
+                                (token.owner == raydium::AUTHORITY_DEV_ID && post_token.owner == raydium::AUTHORITY_DEV_ID) {
                                 if token.mint == spl_token::native_mint::id().to_string()
                                     && post_token.mint == spl_token::native_mint::id().to_string() {
                                     debug!("Pre Token: {}", token.mint);
@@ -376,13 +378,55 @@ impl WebSocketClient {
         });
     }
 
-    pub fn monitor_liquidity(pool_data_sync: PoolDataSync,
-                             wss_pool: &WebSocketClient,
-                             wss_liquidity: &WebSocketClient,
-                             base_mint: &Pubkey,
-                             quote_mint: &Pubkey,
-                             cluster_type: ClusterType) {
-        Self::wait_for_pool(pool_data_sync.clone(), &wss_pool, base_mint, quote_mint, cluster_type);
+    pub fn wait_for_liquidity_pool(pool_data_sync: PoolDataSync, ws: &WebSocketClient, base_mint: &Pubkey, quote_mint: &Pubkey, cluster_type: ClusterType) {
+        let base_mint = base_mint.clone();
+        let quote_mint = quote_mint.clone();
+
+        let db_1 = pool_data_sync.clone();
+        let ws_1 = ws.clone();
+        let cluster_1 = cluster_type.clone();
+
+        tokio::spawn(async move {
+            ws_1.wss_get_liquidity(&base_mint, &quote_mint, cluster_1, db_1).await;
+        });
+    }
+
+
+    pub async fn monitor_liquidity(rpc_client: &RpcClient,
+                                   pool_data_sync: PoolDataSync,
+                                   wss_pool: &WebSocketClient,
+                                   wss_liquidity: &WebSocketClient,
+                                   base_mint: &Pubkey,
+                                   quote_mint: &Pubkey,
+                                   cluster_type: ClusterType) {
+
+        // check if market already exists
+        let market_state = MarketStateLayoutV3::get_with_reqwest(
+            &rpc_client.url(),
+            base_mint,
+            quote_mint,
+            cluster_type,
+        ).await;
+
+        // check if pool already exists
+        let liquidity_state = LiquidityStateLayoutV4::get_with_reqwest(
+            &rpc_client.url(),
+            base_mint,
+            quote_mint,
+            cluster_type,
+        ).await;
+
+        if market_state.is_ok() && liquidity_state.is_err() {
+            let mut pool_data = pool_data_sync.lock().unwrap();
+            pool_data.market_state = Some(market_state.unwrap());
+            Self::wait_for_liquidity_pool(pool_data_sync.clone(), &wss_pool, base_mint, quote_mint, cluster_type)
+        } else if market_state.is_ok() && liquidity_state.is_ok() {
+            let mut pool_data = pool_data_sync.lock().unwrap();
+            pool_data.liquidity_state = Some(liquidity_state.unwrap());
+            pool_data.market_state = Some(market_state.unwrap());
+        } else {
+            Self::wait_for_pool(pool_data_sync.clone(), &wss_pool, base_mint, quote_mint, cluster_type);
+        }
 
         let base_mint = base_mint.clone();
         let db_1 = pool_data_sync.clone();

@@ -801,7 +801,14 @@ pub async fn buy(rpc_client: &RpcClient,
         create_token_account_instruction,
     };
 
-    if wait {
+    let amm_info = LiquidityPoolInfo::build_with_rpc(
+        &rpc_client,
+        &base_mint_pub.to_string(),
+        &quote_mint_pub.to_string(),
+        cluster_type
+    ).await;
+
+    if wait && amm_info.is_err() {
         let pool_data_sync = Arc::new(
             Mutex::new(utils::websocket::PoolChunk {
                 liquidity_state: None,
@@ -851,26 +858,12 @@ pub async fn buy(rpc_client: &RpcClient,
                                   cluster_type,
                                   pool_data_sync.clone()).await;
     } else {
-        let amm_info = match LiquidityPoolInfo::build_with_rpc(
-            &rpc_client,
-            &base_mint_pub.to_string(),
-            &quote_mint_pub.to_string(),
-            cluster_type
-        ).await {
-            Ok(a) => a,
-            Err(e) => {
-                error!("Error getting amm info: {:?}", e);
-                return;
-            }
-        };
-
         debug!("AMM Info: {:?}", amm_info);
-
         swap::buy(
             &rpc_client,
             &wallet_information,
             amount,
-            &amm_info,
+            &amm_info.unwrap(),
             cluster_type
         );
     }
@@ -1041,13 +1034,14 @@ pub async fn rug_token(wss_pool_client: &WebSocketClient,
     };
 
     WebSocketClient::monitor_liquidity(
+        &rpc_client,
         pool_data_sync.clone(),
         &wss_pool_client,
         &wss_liquidity_client,
         &base_mint_pub,
         &quote_mint_pub,
         cluster_type
-    );
+    ).await;
 
     let wallet_information = WalletInformation {
         wallet: token_creator.to_base58_string(),
