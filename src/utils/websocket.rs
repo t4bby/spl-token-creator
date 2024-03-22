@@ -654,7 +654,8 @@ impl WebSocketClient {
                     let now = std::time::SystemTime::now();
                     let since_epoch = now.duration_since(UNIX_EPOCH).expect("Time went backwards");
                     let seconds = since_epoch.as_secs();
-                    if pool_info.liquidity_state.pool_open_time >= seconds {
+                    if pool_info.liquidity_state.pool_open_time <= seconds {
+                        info!("Pool Opened");
                         f(args, &task_config, &pool_info, cluster_type);
                         break;
                     }

@@ -843,9 +843,9 @@ pub async fn buy(rpc_client: &RpcClient,
             let connection = RpcClient::new(&task_config.rpc_url);
 
             // have n-seconds break from selling because you will drain it so fast
-            if task_config.overhead > 0f64 {
-                std::thread::sleep(std::time::Duration::from_secs_f64(task_config.overhead));
-            }
+            // if task_config.overhead > 0f64 {
+            //     std::thread::sleep(std::time::Duration::from_secs_f64(task_config.overhead));
+            // }
 
             for wallet in wallets.iter() {
                 swap::buy(
