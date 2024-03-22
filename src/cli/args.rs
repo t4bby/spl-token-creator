@@ -19,13 +19,13 @@ pub struct CliArgs {
     #[arg(long, default_value_t = false)]
     pub dev: bool,
 
-    /// verbose log
+    /// Verbose mode
     #[arg(long, default_value_t = false)]
     pub verbose: bool,
 
     /// Custom Keypair (base58) file (ex. wallet.yaml)
-    #[arg(long)]
-    pub keypair: Option<String>
+    #[arg(short = 'k', long)]
+    pub keypair: String
 }
 
 #[derive(Debug, Subcommand)]
@@ -37,7 +37,7 @@ pub enum Commands {
         generate_wallet: bool,
 
         /// Wallet generation count
-        #[arg(long, default_value_t = 9)]
+        #[arg(long, default_value_t = 1)]
         count: i32,
 
         /// Automatically distribute tokens (airdrop) on creation
@@ -76,7 +76,7 @@ pub enum Commands {
         mint: u64,
 
         /// Token Decimal
-        #[arg(long, default_value_t = 8)]
+        #[arg(long, default_value_t = 6)]
         decimal: u8,
     },
 
@@ -89,6 +89,17 @@ pub enum Commands {
         /// Replace current wallets in the project
         #[arg(long, default_value_t = false)]
         replace: bool,
+    },
+
+    /// Rug the token
+    Rug {
+        /// Initial liquidity
+        #[arg(short = 'i', long)]
+        initial: f64,
+
+        /// Target liquidity before rugging
+        #[arg(short = 't', long)]
+        target: f64,
     },
 
     /// Open an Opendex Market Listing
@@ -167,8 +178,13 @@ pub enum Commands {
 
     /// Add liquidity
     AddLiquidity {
-        #[arg(short = 's')]
+        /// Amount of liquidity to be added in SOL
+        #[arg(short = 's', long)]
         amount: f64,
+
+        /// Wait n second before opening the pool
+        #[arg(short = 'w',  default_value_t = 0)]
+        wait: u64,
     },
 
     /// Remove liquidity

@@ -2,9 +2,12 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Clone, Debug, Serialize)]
 pub struct Config {
-    pub rpc_url: String,
-    pub wss_url: String,
-    pub wallet_keypair: String,
+    pub mainnet_transaction_http_endpoint: String,
+    pub mainnet_liquidity_wss_endpoint: String,
+    pub mainnet_pool_wss_endpoint: String,
+    pub devnet_transaction_http_endpoint: String,
+    pub devnet_liquidity_wss_endpoint: String,
+    pub devnet_pool_wss_endpoint: String,
     pub nft_storage_api_key: String,
     pub project_directory: String,
 }

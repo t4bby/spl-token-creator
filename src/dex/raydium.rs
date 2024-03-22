@@ -4,15 +4,13 @@ pub mod pool;
 pub mod swap;
 
 use std::str::FromStr;
-use std::time::UNIX_EPOCH;
 use colored::Colorize;
 use log::{error, info};
 use solana_client::rpc_client::RpcClient;
-use solana_client::rpc_config::RpcSendTransactionConfig;
 use solana_program::instruction::{AccountMeta, Instruction};
 use solana_program::native_token::LAMPORTS_PER_SOL;
 use solana_program::pubkey::Pubkey;
-use solana_sdk::commitment_config::{CommitmentConfig, CommitmentLevel};
+use solana_sdk::commitment_config::CommitmentConfig;
 use solana_sdk::genesis_config::ClusterType;
 use solana_sdk::signature::{Keypair, Signer};
 use crate::cli::config::{LiquidityConfig, MarketConfig, ProjectConfig};
@@ -149,7 +147,7 @@ pub fn make_create_pool_v4_instruction(program_id: &Pubkey,
 }
 
 #[allow(deprecated)]
-pub async fn remove_liquidity(rpc_client: &RpcClient,
+pub fn remove_liquidity(rpc_client: &RpcClient,
                               payer: &Keypair,
                               project_dir: &str,
                               liquidity_pool_info: &LiquidityPoolInfo,
@@ -283,13 +281,14 @@ pub async fn remove_liquidity(rpc_client: &RpcClient,
 }
 
 #[allow(deprecated)]
-pub async fn add_liquidity(rpc_client: &RpcClient,
+pub fn add_liquidity(rpc_client: &RpcClient,
                            payer: &Keypair,
                            project_dir: &str,
                            project_config: &ProjectConfig,
                            market_config: &MarketConfig,
                            liquidity_config: &mut LiquidityConfig,
                            amount: f64,
+                           pool_open_time: u64,
                            cluster_type: ClusterType) {
     let amount = (LAMPORTS_PER_SOL as f64 * amount) as u64;
     let token_keypair = Keypair::from_base58_string(&project_config.token_keypair);
@@ -409,10 +408,6 @@ pub async fn add_liquidity(rpc_client: &RpcClient,
         balance = (b.ui_amount.unwrap() * 10f64.powf(decimal as f64)) as u64;
     }
 
-    let now = std::time::SystemTime::now();
-    let since_epoch = now.duration_since(UNIX_EPOCH).expect("Time went backwards");
-    let seconds = since_epoch.as_secs();
-
     instructions.push(
         make_create_pool_v4_instruction(
             &program_id,
@@ -435,7 +430,7 @@ pub async fn add_liquidity(rpc_client: &RpcClient,
                 &lp_mint
             ),
             nonce,
-            seconds,
+            pool_open_time,
             balance,
             amount,
             &amm_config_id,

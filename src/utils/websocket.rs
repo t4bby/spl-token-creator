@@ -1,11 +1,12 @@
 use crate::dex::raydium::layout::MarketStateLayoutV3;
 use std::sync::{Arc, Mutex};
+use std::time::UNIX_EPOCH;
 use borsh::BorshDeserialize;
 use colored::Colorize;
 use log::{debug, error, info};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use solana_program::native_token::lamports_to_sol;
+use solana_program::native_token::{lamports_to_sol, sol_to_lamports};
 use solana_program::pubkey::Pubkey;
 use solana_sdk::genesis_config::ClusterType;
 use tungstenite::Message;
@@ -21,6 +22,7 @@ pub type PoolDataSync = Arc<Mutex<PoolChunk>>;
 pub struct PoolChunk {
     pub liquidity_state: Option<LiquidityStateLayoutV4>,
     pub market_state: Option<MarketStateLayoutV3>,
+    pub liquidity_amount: Option<u64>,
 }
 
 #[allow(dead_code)]
@@ -37,6 +39,14 @@ pub struct TaskConfig {
     pub buy_amount: f64,
     pub overhead: f64,
 }
+
+#[derive(Debug, Clone)]
+pub struct LiquidityTaskConfig {
+    pub rpc_url: String,
+    pub target_liquidity: f64,
+    pub initial_liquidity: f64,
+}
+
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -94,13 +104,13 @@ impl TokenBalance {
 }
 
 impl WebSocketClient {
-    pub fn new(wss_url: &str) -> WebSocketClient {
+    pub fn new<U: ToString>(wss_url: U) -> WebSocketClient {
         WebSocketClient {
             wss_url: wss_url.to_string(),
         }
     }
 
-    pub fn monitor_price_changes(&self, address: &str) {
+    pub fn wss_monitor_liquidity_changes(&self, address: &str) {
         let url = Url::parse(&self.wss_url).unwrap();
         let (mut socket, _response) = tungstenite::connect(url).unwrap();
         info!("monitor_account: Connected to the server");
@@ -133,10 +143,12 @@ impl WebSocketClient {
         ).unwrap();
 
 
-        let mut price_change = 0u64;
+        let mut subscribed = false;
+        let mut subscription_id ;
         loop {
             match socket.read() {
                 Ok(e) => {
+                    debug!("{:?}", e.to_text().unwrap());
                     let parsed: Value = match serde_json::from_str(e.to_text().unwrap()) {
                         Ok(a) => a,
                         Err(_) => {
@@ -144,96 +156,23 @@ impl WebSocketClient {
                         }
                     };
 
-                    match parsed.get("params") {
+                    match parsed.get("result") {
                         None => {}
-                        Some(a) => {
-                            let result = a.get("result").unwrap();
-                            let value = result.get("value").unwrap();
-                            let block = value.get("block").unwrap();
-                            let transactions = block.get("transactions")
-                                                    .unwrap().as_array().unwrap();
-
-                            for transaction in transactions.iter() {
-                                let meta = transaction.get("meta").unwrap();
-                                let err = meta.get("err").unwrap();
-                                if err.is_null() == false {
-                                    continue;
-                                }
-                                // std::fs::write("transaction_block.json", a.to_string()).unwrap();
-
-                                let pre_balances = meta.get("preTokenBalances")
-                                                       .unwrap()
-                                                       .as_array()
-                                                       .unwrap();
-
-                                let mut pre_token_balance: Vec<TokenBalance> = vec![];
-                                let mut post_token_balance: Vec<TokenBalance> = vec![];
-                                for balance in pre_balances.iter() {
-                                    pre_token_balance.push(TokenBalance::parse(&balance));
-                                }
-
-                                let post_balances = meta.get("postTokenBalances")
-                                                        .unwrap()
-                                                        .as_array().unwrap();
-                                for balance in post_balances.iter() {
-                                    post_token_balance.push(TokenBalance::parse(&balance));
-                                }
-
-                                let transaction_info = transaction.get("transaction").unwrap();
-                                let account_keys = transaction_info.get("accountKeys").unwrap().as_array().unwrap();
-
-                                let mut is_raydium_program_transaction = false;
-                                for key in account_keys.iter() {
-                                    let pub_key = key.get("pubkey").unwrap().as_str().unwrap();
-                                    if pub_key == raydium::AMM_PROGRAM_ID || pub_key == raydium::AMM_PROGRAM_DEV_ID {
-                                        is_raydium_program_transaction = true;
-                                        break;
-                                    }
-                                }
-
-                                if is_raydium_program_transaction == false {
-                                    continue;
-                                }
-
-                                for token in pre_token_balance.iter() {
-                                    for post_token in post_token_balance.iter() {
-                                        if token.owner == raydium::AUTORITY_ID
-                                            && post_token.owner == raydium::AUTORITY_ID {
-                                            if token.mint == spl_token::native_mint::id().to_string()
-                                                && post_token.mint == spl_token::native_mint::id().to_string() {
-                                                debug!("Pre Token: {}", token.mint);
-                                                debug!("Pre Address: {}", token.owner);
-
-                                                debug!("Post Token: {}", post_token.mint);
-                                                debug!("Post Address: {}", post_token.owner);
-
-                                                let pre_amount: u64 = token.ui_token_amount.amount.parse().unwrap();
-                                                debug!("Pre Amount: {}", lamports_to_sol(pre_amount).to_string().red());
-
-                                                let post_amount: u64 = post_token.ui_token_amount.amount.parse().unwrap();
-                                                debug!("Post Amount: {}", lamports_to_sol(post_amount).to_string().green());
-                                                price_change = post_amount;
-
-                                                let balance = post_amount as i64 - pre_amount as i64;
-                                                if balance > 0 {
-                                                    info!("[BUY] Liquidity: {} SOL", lamports_to_sol(balance.abs() as u64).to_string().green());
-                                                    break;
-                                                }
-                                                info!("[SELL] Liquidity: -{} SOL", lamports_to_sol(balance.abs() as u64).to_string().red());
-                                                break;
-                                            }
-                                        }
-                                    }
-                                }
-
-                                let sigs = transaction_info.get("signatures").unwrap().as_array().unwrap();
-                                for sig in sigs.iter() {
-                                    info!("Signature: {}", sig.as_str().unwrap());
-                                }
-
-                                info!("Total Liquidity: {} SOL", lamports_to_sol(price_change).to_string().green());
-                            }
+                        Some(_) => {
+                            subscription_id = parsed.get("result").unwrap().as_u64().unwrap();
+                            info!("Subscription ID: {}", subscription_id);
+                            subscribed = true;
                         }
+                    }
+
+                    if subscribed == false {
+                        info!("Subscription failed");
+                        break;
+                    }
+
+                    let liquidity_data = Self::parse_monitor_data(&parsed);
+                    if liquidity_data.is_some() {
+                        info!("Liquidity: {} SOL", liquidity_data.unwrap());
                     }
                 }
                 Err(e) => {
@@ -244,7 +183,179 @@ impl WebSocketClient {
         }
     }
 
-    pub fn wait_for_pool(pool_data_sync: PoolDataSync, ws: WebSocketClient, base_mint: &Pubkey, quote_mint: &Pubkey, cluster_type: ClusterType) {
+    pub async fn wss_get_liquidity_data(&self, address: &Pubkey, pool_data_sync: PoolDataSync) {
+        let url = Url::parse(&self.wss_url).unwrap();
+        let (mut socket, _response) = tungstenite::connect(url).unwrap();
+        info!("monitor_account: Connected to the server");
+
+        let params = json!({
+        "encoding": "base64",
+        "commitment": "confirmed",
+        "transactionDetails": "accounts",
+        "maxSupportedTransactionVersion": 0,
+        "showRewards": false
+        });
+
+        let account_param = json!({
+         "mentionsAccountOrProgram": address.to_string()
+        });
+
+        socket.send(
+            Message::Binary(
+                serde_json::to_vec(
+                    &json!(
+                   {
+                       "jsonrpc": "2.0",
+                       "id": 1,
+                       "method": "blockSubscribe",
+                       "params": json!([account_param, params])
+                   }
+               )
+                ).unwrap()
+            )
+        ).unwrap();
+
+
+        let mut subscribed = false;
+        let mut subscription_id;
+        loop {
+            match socket.read() {
+                Ok(e) => {
+                    let parsed: Value = match serde_json::from_str(e.to_text().unwrap()) {
+                        Ok(a) => a,
+                        Err(_) => {
+                            continue;
+                        }
+                    };
+
+                    match parsed.get("result") {
+                        None => {}
+                        Some(_) => {
+                            subscription_id = parsed.get("result").unwrap().as_u64().unwrap();
+                            info!("Subscription ID: {}", subscription_id);
+                            subscribed = true;
+                        }
+                    }
+
+                    if subscribed == false {
+                        info!("Subscription failed");
+                        break;
+                    }
+
+                    let price_data = Self::parse_monitor_data(&parsed);
+                    if price_data.is_some() {
+                        let mut pool_data = pool_data_sync.lock().unwrap();
+                        pool_data.liquidity_amount = Some(price_data.unwrap());
+                    }
+                }
+                Err(e) => {
+                    error!("{:?}", e);
+                    break;
+                }
+            }
+        }
+    }
+
+    fn parse_monitor_data(value: &Value) -> Option<u64> {
+        match value.get("params") {
+            None => None,
+            Some(a) => {
+                let result = a.get("result").unwrap();
+                let value = result.get("value").unwrap();
+                let block = value.get("block").unwrap();
+                let transactions = block.get("transactions")
+                                        .unwrap().as_array().unwrap();
+
+                let mut price_data = 0u64;
+
+                for transaction in transactions.iter() {
+                    let meta = transaction.get("meta").unwrap();
+                    let err = meta.get("err").unwrap();
+                    if err.is_null() == false {
+                        continue;
+                    }
+                    // std::fs::write("transaction_block.json", a.to_string()).unwrap();
+
+                    let pre_balances = meta.get("preTokenBalances")
+                                           .unwrap()
+                                           .as_array()
+                                           .unwrap();
+
+                    let mut pre_token_balance: Vec<TokenBalance> = vec![];
+                    let mut post_token_balance: Vec<TokenBalance> = vec![];
+                    for balance in pre_balances.iter() {
+                        pre_token_balance.push(TokenBalance::parse(&balance));
+                    }
+
+                    let post_balances = meta.get("postTokenBalances")
+                                            .unwrap()
+                                            .as_array().unwrap();
+                    for balance in post_balances.iter() {
+                        post_token_balance.push(TokenBalance::parse(&balance));
+                    }
+
+                    let transaction_info = transaction.get("transaction").unwrap();
+                    let account_keys = transaction_info.get("accountKeys").unwrap().as_array().unwrap();
+
+                    let mut is_raydium_program_transaction = false;
+                    for key in account_keys.iter() {
+                        let pub_key = key.get("pubkey").unwrap().as_str().unwrap();
+                        if pub_key == raydium::AMM_PROGRAM_ID || pub_key == raydium::AMM_PROGRAM_DEV_ID {
+                            is_raydium_program_transaction = true;
+                            break;
+                        }
+                    }
+
+                    if is_raydium_program_transaction == false {
+                        continue;
+                    }
+
+                    for token in pre_token_balance.iter() {
+                        for post_token in post_token_balance.iter() {
+                            if token.owner == raydium::AUTORITY_ID
+                                && post_token.owner == raydium::AUTORITY_ID {
+                                if token.mint == spl_token::native_mint::id().to_string()
+                                    && post_token.mint == spl_token::native_mint::id().to_string() {
+                                    debug!("Pre Token: {}", token.mint);
+                                    debug!("Pre Address: {}", token.owner);
+
+                                    debug!("Post Token: {}", post_token.mint);
+                                    debug!("Post Address: {}", post_token.owner);
+
+                                    let pre_amount: u64 = token.ui_token_amount.amount.parse().unwrap();
+                                    debug!("Pre Amount: {}", lamports_to_sol(pre_amount).to_string().red());
+
+                                    let post_amount: u64 = post_token.ui_token_amount.amount.parse().unwrap();
+                                    debug!("Post Amount: {}", lamports_to_sol(post_amount).to_string().green());
+                                    price_data = post_amount;
+
+                                    let balance = post_amount as i64 - pre_amount as i64;
+                                    if balance > 0 {
+                                        info!("[BUY] Liquidity: {} SOL", lamports_to_sol(balance.abs() as u64).to_string().green());
+                                        break;
+                                    }
+                                    info!("[SELL] Liquidity: -{} SOL", lamports_to_sol(balance.abs() as u64).to_string().red());
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
+                    let sigs = transaction_info.get("signatures").unwrap().as_array().unwrap();
+                    for sig in sigs.iter() {
+                        info!("Signature: {}", sig.as_str().unwrap());
+                    }
+
+                    debug!("Total Liquidity: {} SOL",
+                            lamports_to_sol(price_data).to_string().green());
+                }
+
+                Some(price_data)
+            }
+        }
+    }
+
+    pub fn wait_for_pool(pool_data_sync: PoolDataSync, ws: &WebSocketClient, base_mint: &Pubkey, quote_mint: &Pubkey, cluster_type: ClusterType) {
         let base_mint = base_mint.clone();
         let quote_mint = quote_mint.clone();
 
@@ -262,6 +373,23 @@ impl WebSocketClient {
 
         tokio::spawn(async move {
             ws_2.wss_get_liquidity(&base_mint, &quote_mint, cluster_2, db_2).await;
+        });
+    }
+
+    pub fn monitor_liquidity(pool_data_sync: PoolDataSync,
+                             wss_pool: &WebSocketClient,
+                             wss_liquidity: &WebSocketClient,
+                             base_mint: &Pubkey,
+                             quote_mint: &Pubkey,
+                             cluster_type: ClusterType) {
+        Self::wait_for_pool(pool_data_sync.clone(), &wss_pool, base_mint, quote_mint, cluster_type);
+
+        let base_mint = base_mint.clone();
+        let db_1 = pool_data_sync.clone();
+        let ws_1 = wss_liquidity.clone();
+
+        tokio::spawn(async move {
+            ws_1.wss_get_liquidity_data(&base_mint, db_1).await;
         });
     }
 
@@ -302,11 +430,31 @@ impl WebSocketClient {
             )
         ).unwrap();
 
+        let mut subscribed = false;
+        let mut subscription_id;
         loop {
             match socket.read() {
                 Ok(e) => {
-                    info!("Subscribed or received data");
-                    debug!("wss_get_market_with_program_id: {:?}", e);
+                    let parsed: Value = match serde_json::from_str(e.to_text().unwrap()) {
+                        Ok(a) => a,
+                        Err(_) => {
+                            continue;
+                        }
+                    };
+
+                    match parsed.get("result") {
+                        None => {}
+                        Some(_) => {
+                            subscription_id = parsed.get("result").unwrap().as_u64().unwrap();
+                            info!("Subscription ID: {}", subscription_id);
+                            subscribed = true;
+                        }
+                    }
+
+                    if subscribed == false {
+                        info!("Subscription failed");
+                        break;
+                    }
 
                     let d = Self::parse_wss_data(e);
                     if d.is_some() {
@@ -384,10 +532,32 @@ impl WebSocketClient {
             )
         ).unwrap();
 
+        let mut subscribed = false;
+        let mut subscription_id;
         loop {
             match socket.read() {
                 Ok(e) => {
-                    info!("Subscribed or received data");
+                    let parsed: Value = match serde_json::from_str(e.to_text().unwrap()) {
+                        Ok(a) => a,
+                        Err(_) => {
+                            continue;
+                        }
+                    };
+
+                    match parsed.get("result") {
+                        None => {}
+                        Some(_) => {
+                            subscription_id = parsed.get("result").unwrap().as_u64().unwrap();
+                            info!("Subscription ID: {}", subscription_id);
+                            subscribed = true;
+                        }
+                    }
+
+                    if subscribed == false {
+                        info!("Subscription failed");
+                        break;
+                    }
+
                     debug!("wss_get_liquidity_with_program_id: {:?}", e);
 
                     let d = Self::parse_wss_data(e);
@@ -433,7 +603,51 @@ impl WebSocketClient {
                 let pool_info =
                     LiquidityPoolInfo::build(pool_data.liquidity_state.unwrap(), pool_data.market_state.unwrap(), cluster_type)
                         .expect("failed building liquidity pool info");
-                f(args, &task_config, &pool_info, cluster_type);
+
+                info!("Pool Open Time: {}", pool_info.liquidity_state.pool_open_time);
+                loop {
+                    let now = std::time::SystemTime::now();
+                    let since_epoch = now.duration_since(UNIX_EPOCH).expect("Time went backwards");
+                    let seconds = since_epoch.as_secs();
+                    if pool_info.liquidity_state.pool_open_time >= seconds {
+                        f(args, &task_config, &pool_info, cluster_type);
+                        break;
+                    }
+                }
+                break;
+            }
+        }
+    }
+
+    pub async fn run_liquidity_change_task(f: impl Fn(WalletInformation, &LiquidityTaskConfig, &LiquidityPoolInfo, ClusterType),
+                                           args: WalletInformation,
+                                           task_config: LiquidityTaskConfig,
+                                           cluster_type: ClusterType,
+                                           pool_data_sync: PoolDataSync) {
+        loop {
+            let pool_data = pool_data_sync.lock().unwrap();
+            if pool_data.liquidity_state.is_some() && pool_data.market_state.is_some() {
+                let pool_info =
+                    LiquidityPoolInfo::build(pool_data.liquidity_state.unwrap(), pool_data.market_state.unwrap(), cluster_type)
+                        .expect("failed building liquidity pool info");
+
+                info!("Pool Open Time: {}", pool_info.liquidity_state.pool_open_time);
+
+                let target_liquidity: u64 = sol_to_lamports(task_config.target_liquidity);
+                loop {
+                    let now = std::time::SystemTime::now();
+                    let since_epoch = now.duration_since(UNIX_EPOCH).expect("Time went backwards");
+                    let seconds = since_epoch.as_secs();
+                    if pool_info.liquidity_state.pool_open_time >= seconds {
+                        if pool_data.liquidity_amount.is_some() {
+                            if pool_data.liquidity_amount.unwrap() >= target_liquidity {
+                                f(args.clone(), &task_config, &pool_info, cluster_type);
+                                break;
+                            }
+                        }
+                        break;
+                    }
+                }
                 break;
             }
         }

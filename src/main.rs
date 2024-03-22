@@ -22,6 +22,7 @@ use solana_sdk::genesis_config::ClusterType;
 use crate::api::dexscreener::DexScreener;
 use crate::cli::args::{CliArgs, Commands};
 use crate::cli::config::{Config, ProjectConfig, WalletFile};
+use crate::utils::websocket::WebSocketClient;
 
 
 #[tokio::main(flavor = "multi_thread", worker_threads = 10)]
@@ -102,30 +103,34 @@ async fn main() {
         }
     };
 
-    let rpc_client = RpcClient::new(config.rpc_url.clone());
-    let mut keypair = Keypair::from_base58_string(&config.wallet_keypair);
+    let keypair;
+    match WalletFile::from_config_file(&args.keypair) {
+        Ok(a) => {
+            keypair = Keypair::from_base58_string(&a.key)
+        }
 
-    if args.keypair.is_some() {
-        match WalletFile::from_config_file(
-            &args.keypair.unwrap()
-        ) {
-            Ok(a) => {
-                keypair = Keypair::from_base58_string(&a.key)
-            }
+        Err(e) => {
+            error!("Error reading keypair file: {:?}", e);
+            return;
+        }
+    };
 
-            Err(e) => {
-                error!("Error reading keypair file: {:?}", e);
-                return;
-            }
-        };
-    }
-
+    let rpc_client;
+    let wss_liquidity_rpc_client;
+    let wss_pool_rpc_client;
     let cluster_type;
     let cluster_type_string: String;
+
     if args.dev {
+        rpc_client = RpcClient::new(config.devnet_transaction_http_endpoint.clone());
+        wss_pool_rpc_client = WebSocketClient::new(config.devnet_pool_wss_endpoint.clone());
+        wss_liquidity_rpc_client = WebSocketClient::new(config.devnet_liquidity_wss_endpoint.clone());
         cluster_type_string = "Devnet".yellow().bold().to_string();
         cluster_type = ClusterType::Devnet
     } else {
+        rpc_client = RpcClient::new(config.mainnet_transaction_http_endpoint.clone());
+        wss_pool_rpc_client = WebSocketClient::new(config.mainnet_pool_wss_endpoint.clone());
+        wss_liquidity_rpc_client = WebSocketClient::new(config.mainnet_liquidity_wss_endpoint.clone());
         cluster_type_string = "MainnetBeta".green().bold().to_string();
         cluster_type = ClusterType::MainnetBeta
     };
@@ -136,7 +141,7 @@ async fn main() {
         match args.command {
             Commands::MonitorAccount { address } => {
                 cli::monitor_account(
-                    &config.wss_url,
+                    &wss_liquidity_rpc_client,
                     &address
                 ).await;
                 return;
@@ -269,7 +274,7 @@ async fn main() {
             Commands::Buy { mint, quote_mint, amount, wait, skip, overhead } => {
                 cli::buy(
                     &rpc_client,
-                    &config,
+                    &wss_pool_rpc_client,
                     &keypair,
                     &mint,
                     &quote_mint,
@@ -297,7 +302,7 @@ async fn main() {
 
             Commands::PoolInformation { ref mint, ref quote_mint } => {
                 cli::get_pool_information(
-                    &config,
+                    &rpc_client,
                     &mint,
                     &quote_mint,
                     cluster_type
@@ -502,7 +507,7 @@ async fn main() {
             ).await;
         },
 
-        Commands::AddLiquidity { amount } => {
+        Commands::AddLiquidity { amount, wait } => {
             cli::add_liquidity(
                 &rpc_client,
                 &keypair,
@@ -511,6 +516,7 @@ async fn main() {
                 project_market,
                 project_liquidity,
                 amount,
+                wait,
                 cluster_type,
                 has_market,
                 has_liquidity
@@ -529,10 +535,22 @@ async fn main() {
             ).await;
         },
 
+        Commands::Rug { initial, target } => {
+            cli::rug_token(
+                &wss_pool_rpc_client,
+                &wss_liquidity_rpc_client,
+                &keypair,
+                &rpc_client,
+                &project_config,
+                initial,
+                target,
+                cluster_type
+            ).await;
+        },
+
         Commands::ProjectSell { mint, percent, sell_all, wallet_count, interval } => {
             cli::project_sell(
                 &rpc_client,
-                &config,
                 &project_config,
                 &mint,
                 sell_all,
@@ -553,8 +571,8 @@ async fn main() {
             }
 
             cli::auto_sell(
+                &wss_pool_rpc_client,
                 &rpc_client,
-                &config,
                 &project_config,
                 &mint,
                 &quote_mint,

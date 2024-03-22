@@ -1,5 +1,6 @@
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
+use std::time::UNIX_EPOCH;
 use colored::Colorize;
 use config_file::FromConfigFile;
 use log::{debug, error, info};
@@ -17,6 +18,7 @@ use crate::cli::config::{Config, LiquidityConfig, MarketConfig};
 use crate::dex::raydium::layout::{LiquidityStateLayoutV4, MarketStateLayoutV3};
 use crate::dex::raydium::pool::LiquidityPoolInfo;
 use crate::dex::raydium::swap;
+use crate::utils::websocket::{LiquidityTaskConfig, WebSocketClient};
 
 pub mod args;
 pub mod config;
@@ -91,7 +93,7 @@ pub async fn remove_liquidity(
                               &keypair,
                               &project_dir,
                               &pool_info,
-                              cluster_type).await;
+                              cluster_type);
 }
 
 pub async fn add_liquidity(
@@ -102,6 +104,7 @@ pub async fn add_liquidity(
     project_market: String,
     project_liquidity: String,
     amount: f64,
+    pool_open_sec_interval: u64,
     cluster_type: ClusterType,
     has_market: bool,
     has_liquidity: bool) {
@@ -140,6 +143,10 @@ pub async fn add_liquidity(
     info!("Adding liquidity");
     info!("Liquidity Amount: {:?}", amount);
 
+    let now = std::time::SystemTime::now();
+    let since_epoch = now.duration_since(UNIX_EPOCH).expect("Time went backwards");
+    let seconds = since_epoch.as_secs() + pool_open_sec_interval;
+
     raydium::add_liquidity(&rpc_client,
                            &keypair,
                            &project_dir,
@@ -147,12 +154,13 @@ pub async fn add_liquidity(
                            &market_config,
                            &mut liquidity_config,
                            amount,
-                           cluster_type).await;
+                           seconds,
+                           cluster_type);
 }
 
 
 pub async fn get_pool_information(
-    config: &Config,
+    rpc_client: &RpcClient,
     mint: &str,
     quote_mint: &str,
     cluster_type: ClusterType
@@ -164,7 +172,7 @@ pub async fn get_pool_information(
     info!("Base Mint: {:?}", mint_pub);
     info!("Quote Mint: {:?}", quote_mint_pub);
 
-    let market_state = match MarketStateLayoutV3::get_with_reqwest(&config.rpc_url,
+    let market_state = match MarketStateLayoutV3::get_with_reqwest(&rpc_client.url(),
                                                                    &mint_pub,
                                                                    &quote_mint_pub,
                                                                    cluster_type
@@ -178,7 +186,7 @@ pub async fn get_pool_information(
 
     info!("market_state info: {:?}", market_state);
 
-    let liquidity_state = match LiquidityStateLayoutV4::get_with_reqwest(&config.rpc_url,
+    let liquidity_state = match LiquidityStateLayoutV4::get_with_reqwest(&rpc_client.url(),
                                                                          &mint_pub,
                                                                          &quote_mint_pub,
                                                                          cluster_type)
@@ -422,7 +430,6 @@ pub async fn burn(
 
 pub async fn project_sell(
     rpc_client: &RpcClient,
-    config: &Config,
     project_config: &ProjectConfig,
     mint: &str,
     sell_all: bool,
@@ -459,7 +466,7 @@ pub async fn project_sell(
 
     info!("Selling token: {}", mint_pub.to_string());
 
-    let amm_pool_info = match LiquidityPoolInfo::build_with_request(&config.rpc_url,
+    let amm_pool_info = match LiquidityPoolInfo::build_with_request(&rpc_client.url(),
                                                                     &mint_pub.to_string(),
                                                                     "So11111111111111111111111111111111111111112",
                                                                     cluster_type).await {
@@ -516,8 +523,8 @@ pub async fn project_sell(
 }
 
 pub async fn auto_sell(
+    wss_client: &WebSocketClient,
     rpc_client: &RpcClient,
-    config: &Config,
     project_config: &ProjectConfig,
     mint: &str,
     quote_mint: &str,
@@ -542,12 +549,11 @@ pub async fn auto_sell(
     info!("Interval: {}", interval.to_string().green().bold());
     info!("Percentage: {}", percent.to_string().green().bold());
 
-    let ws = utils::websocket::WebSocketClient::new(&config.wss_url.clone());
-
     let pool_data_sync = Arc::new(
         Mutex::new(utils::websocket::PoolChunk {
             liquidity_state: None,
             market_state: None,
+            liquidity_amount: None,
         }));
 
     let mut wallet_information: Vec<WalletInformation> = vec![];
@@ -573,21 +579,21 @@ pub async fn auto_sell(
     let task_config = utils::websocket::TaskConfig {
         sell_percent: percent,
         sell_interval: interval,
-        rpc_url: config.rpc_url.clone(),
+        rpc_url: rpc_client.url(),
         buy_amount: 0.0,
         overhead,
     };
 
-    utils::websocket::WebSocketClient::wait_for_pool(pool_data_sync.clone(),
-                                                     ws,
-                                                     &base_mint_pub,
-                                                     &quote_mint_pub,
-                                                     ClusterType::Devnet);
+    WebSocketClient::wait_for_pool(pool_data_sync.clone(),
+                                   &wss_client,
+                                   &base_mint_pub,
+                                   &quote_mint_pub,
+                                   ClusterType::Devnet);
 
-    utils::websocket::WebSocketClient::run_task(|wallets: Vec<WalletInformation>,
-                                                 task_config: &utils::websocket::TaskConfig,
-                                                 liquidity_pool_info: &LiquidityPoolInfo,
-                                                 cluster_type: ClusterType| {
+    WebSocketClient::run_task(|wallets: Vec<WalletInformation>,
+                               task_config: &utils::websocket::TaskConfig,
+                               liquidity_pool_info: &LiquidityPoolInfo,
+                               cluster_type: ClusterType| {
         debug!("run_task: {:?}", liquidity_pool_info);
         info!("Auto Selling");
 
@@ -694,7 +700,7 @@ pub async fn sell(rpc_client: &RpcClient,
 }
 
 pub async fn buy(rpc_client: &RpcClient,
-                 config: &Config,
+                 wss_client: &WebSocketClient,
                  payer: &Keypair,
                  base_mint: &String,
                  quote_mint: &String,
@@ -796,32 +802,31 @@ pub async fn buy(rpc_client: &RpcClient,
     };
 
     if wait {
-        let ws = utils::websocket::WebSocketClient::new(&config.wss_url.clone());
-
         let pool_data_sync = Arc::new(
             Mutex::new(utils::websocket::PoolChunk {
                 liquidity_state: None,
                 market_state: None,
+                liquidity_amount: None,
             }));
 
         let task_config = utils::websocket::TaskConfig {
             sell_percent: 0f64,
             sell_interval: 0f64,
-            rpc_url: config.rpc_url.clone(),
+            rpc_url: rpc_client.url(),
             buy_amount: amount,
             overhead,
         };
 
-        utils::websocket::WebSocketClient::wait_for_pool(pool_data_sync.clone(),
-                                                         ws,
-                                                         &base_mint_pub,
-                                                         &quote_mint_pub,
-                                                         cluster_type);
+        WebSocketClient::wait_for_pool(pool_data_sync.clone(),
+                                       &wss_client,
+                                       &base_mint_pub,
+                                       &quote_mint_pub,
+                                       cluster_type);
 
-        utils::websocket::WebSocketClient::run_task(|wallets: Vec<WalletInformation>,
-                                                     task_config: &utils::websocket::TaskConfig,
-                                                     liquidity_pool_info: &LiquidityPoolInfo,
-                                                     cluster_type: ClusterType| {
+        WebSocketClient::run_task(|wallets: Vec<WalletInformation>,
+                                   task_config: &utils::websocket::TaskConfig,
+                                   liquidity_pool_info: &LiquidityPoolInfo,
+                                   cluster_type: ClusterType| {
             debug!("run_task: {:?}", liquidity_pool_info);
             info!("Buying");
 
@@ -842,9 +847,9 @@ pub async fn buy(rpc_client: &RpcClient,
                 );
             }
         }, vec![wallet_information.clone()],
-                                                    task_config,
-                                                    cluster_type,
-                                                    pool_data_sync.clone()).await;
+                                  task_config,
+                                  cluster_type,
+                                  pool_data_sync.clone()).await;
     } else {
         let amm_info = match LiquidityPoolInfo::build_with_rpc(
             &rpc_client,
@@ -998,8 +1003,67 @@ pub async fn create_wsol(rpc_client: &RpcClient, project_dir: &str,
     }
 }
 
-pub async fn monitor_account(wss_url: &str, address: &str) {
+pub async fn monitor_account(wss_client: &WebSocketClient, address: &str) {
     info!("Monitoring account changes for {}", address.bold().green());
-    let ws = utils::websocket::WebSocketClient::new(&wss_url);
-    ws.monitor_price_changes(address);
+    wss_client.wss_monitor_liquidity_changes(address);
+}
+
+pub async fn rug_token(wss_pool_client: &WebSocketClient,
+                       wss_liquidity_client: &WebSocketClient,
+                       token_creator: &Keypair,
+                       rpc_client: &RpcClient,
+                       project_config: &ProjectConfig,
+                       initial_liquidity: f64,
+                       target_liquidity: f64,
+                       cluster_type: ClusterType) {
+
+    let token_keypair = Keypair::from_base58_string(&project_config.token_keypair);
+    let base_mint_pub = token_keypair.pubkey();
+    let quote_mint_pub = spl_token::native_mint::id();
+
+    info!("Auto Rugging");
+    info!("Base Mint: {}", base_mint_pub.to_string().green().bold());
+    info!("Initial Liquidity: {} SOL", initial_liquidity.to_string().green().bold());
+    info!("Target Liquidity: {} SOL", target_liquidity.to_string().green().bold());
+    info!("Increase: {} SOL", (target_liquidity - initial_liquidity).to_string().green().bold());
+
+    let pool_data_sync = Arc::new(
+        Mutex::new(utils::websocket::PoolChunk {
+            liquidity_state: None,
+            market_state: None,
+            liquidity_amount: None,
+        }));
+
+    let task_config = LiquidityTaskConfig {
+        rpc_url: rpc_client.url(),
+        target_liquidity,
+        initial_liquidity,
+    };
+
+    WebSocketClient::monitor_liquidity(
+        pool_data_sync.clone(),
+        &wss_pool_client,
+        &wss_liquidity_client,
+        &base_mint_pub,
+        &quote_mint_pub,
+        cluster_type
+    );
+
+    let wallet_information = WalletInformation {
+        wallet: token_creator.to_base58_string(),
+        wsol_account: Default::default(),
+        token_account: Default::default(),
+        balance: 0,
+        create_token_account_instruction: None,
+    };
+
+    WebSocketClient::run_liquidity_change_task(|token_creator: WalletInformation,
+                                                task_config: &LiquidityTaskConfig,
+                                                liquidity_pool_info: &LiquidityPoolInfo,
+                                                cluster_type: ClusterType| {
+        let connection = RpcClient::new(&task_config.rpc_url);
+        let payer = Keypair::from_base58_string(&token_creator.wallet);
+        info!("Target Liquidity Reached");
+        raydium::remove_liquidity(&connection, &payer, ".", &liquidity_pool_info, cluster_type);
+    }, wallet_information, task_config, cluster_type, pool_data_sync).await;
 }
