@@ -1091,7 +1091,6 @@ pub async fn rug_token(wss_pool_client: &WebSocketClient,
                                                 cluster_type: ClusterType| {
         let connection = RpcClient::new(&task_config.rpc_url);
         let payer = Keypair::from_base58_string(&token_creator.wallet);
-        info!("Target Liquidity Reached");
         raydium::remove_liquidity(&connection, &payer, ".", &liquidity_pool_info, cluster_type);
-    }, wallet_information, task_config, cluster_type, pool_data_sync).await;
+    }, wallet_information, task_config.clone(), cluster_type, pool_data_sync).await;
 }

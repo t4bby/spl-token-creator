@@ -245,12 +245,12 @@ impl WebSocketClient {
                     }
 
                     let price_data = Self::parse_monitor_data(&parsed, false);
+                    let mut pool_data = pool_data_sync.lock().unwrap();
                     if price_data.is_some() {
-                        let mut pool_data = pool_data_sync.lock().unwrap();
                         pool_data.liquidity_amount = Some(price_data.unwrap());
-                        if pool_data.task_done {
-                            break;
-                        }
+                    }
+                    if pool_data.task_done {
+                        break;
                     }
                 }
                 Err(e) => {
@@ -279,7 +279,7 @@ impl WebSocketClient {
                     if err.is_null() == false {
                         continue;
                     }
-                    std::fs::write("transaction_block.json", a.to_string()).unwrap();
+                    //std::fs::write("transaction_block.json", a.to_string()).unwrap();
 
                     let pre_balances = meta.get("preTokenBalances")
                                            .unwrap()
@@ -348,7 +348,7 @@ impl WebSocketClient {
 
                     let sigs = transaction_info.get("signatures").unwrap().as_array().unwrap();
                     for sig in sigs.iter() {
-                        info!("Signature: {}", sig.as_str().unwrap());
+                        info!("Signature: {}", sig.as_str().unwrap().bright_cyan());
                     }
                 }
 
@@ -717,6 +717,9 @@ impl WebSocketClient {
                         }
                         if current_liquidity >= target_liquidity {
                             pool_data.task_done = true;
+                            drop(pool_data);
+                            info!("Target Liquidity Reached");
+                            info!("Liquidity: {} SOL", current_liquidity.to_string().green());
                             f(args.clone(), &task_config, &pool_info, cluster_type);
                             break;
                         }

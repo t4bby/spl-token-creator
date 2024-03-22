@@ -7,7 +7,6 @@ async fn test_rug() {
     use chrono::Local;
     use colored::Colorize;
     use env_logger::Builder;
-    use log::{info, Level};
     use solana_client::rpc_client::RpcClient;
     use solana_program::pubkey::Pubkey;
     use solana_sdk::genesis_config::ClusterType;
@@ -17,6 +16,8 @@ async fn test_rug() {
     use crate::spl::token::WalletInformation;
     use crate::utils;
     use crate::utils::websocket::{LiquidityTaskConfig, WebSocketClient};
+    use log::Level;
+    use crate::dex::raydium;
 
     let mut log_builder = Builder::new();
     log_builder.format(|buf, record| {
@@ -58,10 +59,10 @@ async fn test_rug() {
     let wss_liquidity_rpc_client = WebSocketClient::new("wss://chaotic-clean-choice.solana-mainnet.quiknode.pro/3a710dcb65ef3cef9ff255c493cb27056bfeea71/");
     let cluster_type = ClusterType::MainnetBeta;
 
-    let initial_liquidity = 1f64;
-    let target_liquidity = 5f64;
+    let initial_liquidity = 14f64;
+    let target_liquidity = 15f64;
 
-    let base_mint_pub = Pubkey::from_str("6uTDFGqyp7Fwtc7ApE6EBJEgj69w9wmdy4ui8gUkJxmm").unwrap();
+    let base_mint_pub = Pubkey::from_str("26k8LBzbfTtoSkc92Ziq6eemZeB8eLQ5wrHwqrjYTFDS").unwrap();
     let quote_mint_pub = spl_token::native_mint::id();
 
     let pool_data_sync = Arc::new(
@@ -127,10 +128,12 @@ async fn test_rug() {
         create_token_account_instruction: None,
     };
 
-    WebSocketClient::run_liquidity_change_task(|_token_creator: WalletInformation,
+    WebSocketClient::run_liquidity_change_task(|token_creator: WalletInformation,
                                                 _task_config: &LiquidityTaskConfig,
-                                                _liquidity_pool_info: &LiquidityPoolInfo,
-                                                _cluster_type: ClusterType| {
-        info!("Target Liquidity Reached");
-    }, wallet_information, task_config, cluster_type, pool_data_sync).await;
+                                                liquidity_pool_info: &LiquidityPoolInfo,
+                                                cluster_type: ClusterType| {
+        let connection = RpcClient::new(&task_config.rpc_url);
+        let payer = Keypair::from_base58_string(&token_creator.wallet);
+        raydium::remove_liquidity(&connection, &payer, ".", &liquidity_pool_info, cluster_type);
+    }, wallet_information, task_config.clone(), cluster_type, pool_data_sync).await;
 }
