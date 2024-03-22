@@ -160,7 +160,7 @@ impl WebSocketClient {
                         None => {}
                         Some(_) => {
                             subscription_id = parsed.get("result").unwrap().as_u64().unwrap();
-                            info!("Subscription ID: {}", subscription_id);
+                            info!("[monitor_account] Subscription ID: {}", subscription_id);
                             subscribed = true;
                         }
                     }
@@ -232,7 +232,7 @@ impl WebSocketClient {
                         None => {}
                         Some(_) => {
                             subscription_id = parsed.get("result").unwrap().as_u64().unwrap();
-                            info!("Subscription ID: {}", subscription_id);
+                            info!("[monitor_account] Subscription ID: {}", subscription_id);
                             subscribed = true;
                         }
                     }
@@ -446,7 +446,7 @@ impl WebSocketClient {
                         None => {}
                         Some(_) => {
                             subscription_id = parsed.get("result").unwrap().as_u64().unwrap();
-                            info!("Subscription ID: {}", subscription_id);
+                            info!("[MarketStateLayoutV3] Subscription ID: {}", subscription_id);
                             subscribed = true;
                         }
                     }
@@ -548,7 +548,7 @@ impl WebSocketClient {
                         None => {}
                         Some(_) => {
                             subscription_id = parsed.get("result").unwrap().as_u64().unwrap();
-                            info!("Subscription ID: {}", subscription_id);
+                            info!("[LiquidityStateLayoutV4] Subscription ID: {}", subscription_id);
                             subscribed = true;
                         }
                     }
