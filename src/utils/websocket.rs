@@ -1,15 +1,20 @@
+use std::str::FromStr;
 use crate::dex::raydium::layout::MarketStateLayoutV3;
 use std::sync::{Arc, Mutex};
 use std::time::UNIX_EPOCH;
+use async_recursion::async_recursion;
 use borsh::BorshDeserialize;
 use chrono::DateTime;
 use colored::Colorize;
 use log::{debug, error, info};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use solana_client::rpc_client::RpcClient;
+use solana_client::rpc_request::TokenAccountsFilter;
 use solana_program::native_token::lamports_to_sol;
 use solana_program::pubkey::Pubkey;
 use solana_sdk::genesis_config::ClusterType;
+use solana_sdk::signature::{Keypair, Signer};
 use tungstenite::Message;
 use url::Url;
 use crate::dex;
@@ -44,7 +49,6 @@ pub struct TaskConfig {
 
 #[derive(Debug, Clone)]
 pub struct LiquidityTaskConfig {
-    pub rpc_url: String,
     pub target_liquidity: f64,
     pub initial_liquidity: f64,
 }
@@ -178,16 +182,26 @@ impl WebSocketClient {
                     }
                 }
                 Err(e) => {
-                    error!("{:?}", e);
-                    break;
+                    error!("Reconnecting. Error: {:?}", e);
+                    self.wss_monitor_liquidity_changes(address);
                 }
             }
         }
     }
 
+    #[async_recursion]
     pub async fn wss_get_liquidity_data(&self, address: &Pubkey, pool_data_sync: PoolDataSync) {
         let url = Url::parse(&self.wss_url).unwrap();
-        let (mut socket, _response) = tungstenite::connect(url).unwrap();
+
+        let mut socket;
+        loop {
+            let temp_socket = tungstenite::connect(&url);
+            if temp_socket.is_ok() {
+                (socket, _) = temp_socket.unwrap();
+                break;
+            }
+        }
+
         info!("Liquidity Monitor: Connected to the server");
 
         let params = json!({
@@ -254,7 +268,9 @@ impl WebSocketClient {
                     }
                 }
                 Err(e) => {
-                    error!("{:?}", e);
+                    // Reconnect
+                    error!("Reconnecting. Error: {:?}", e);
+                    let _ = self.wss_get_liquidity_data(address, pool_data_sync.clone());
                     break;
                 }
             }
@@ -399,7 +415,6 @@ impl WebSocketClient {
         });
     }
 
-
     pub fn monitor_liquidity(pool_data_sync: PoolDataSync,
                              wss_pool: &WebSocketClient,
                              wss_liquidity: &WebSocketClient,
@@ -408,7 +423,6 @@ impl WebSocketClient {
                              cluster_type: ClusterType,
                              market_state: Option<MarketStateLayoutV3>,
                              liquidity_state: Option<LiquidityStateLayoutV4>) {
-
         if market_state.is_some() && liquidity_state.is_some() {
             info!("Market and Liquidity found");
             let mut pool_data = pool_data_sync.lock().unwrap();
@@ -449,7 +463,8 @@ impl WebSocketClient {
         }
     }
 
-    pub async fn wss_get_market_with_program_id<U: ToString + serde::Serialize>(&self, base_mint: &Pubkey, quote_mint: &Pubkey,
+    #[async_recursion]
+    pub async fn wss_get_market_with_program_id<U: ToString + serde::Serialize + Send>(&self, base_mint: &Pubkey, quote_mint: &Pubkey,
                                                                                 pool_data_sync: PoolDataSync, program_id: U) {
         let url = Url::parse(&self.wss_url).unwrap();
         let (mut socket, _response) = tungstenite::connect(url).unwrap();
@@ -504,7 +519,8 @@ impl WebSocketClient {
                     }
                 }
                 Err(e) => {
-                    error!("{:?}", e);
+                    error!("Reconnecting. Error: {:?}", e);
+                    let _ = self.wss_get_market_with_program_id(base_mint, quote_mint, pool_data_sync.clone(), program_id.to_string());
                     break;
                 }
             }
@@ -551,7 +567,8 @@ impl WebSocketClient {
         }
     }
 
-    pub async fn wss_get_liquidity_with_program_id<U: ToString + serde::Serialize>(&self, base_mint: &Pubkey, quote_mint: &Pubkey,
+    #[async_recursion]
+    pub async fn wss_get_liquidity_with_program_id<U: ToString + serde::Serialize + Send>(&self, base_mint: &Pubkey, quote_mint: &Pubkey,
                                                                                    pool_data_sync: PoolDataSync, program_id: U) {
         let url = Url::parse(&self.wss_url).unwrap();
         let (mut socket, _response) = tungstenite::connect(url).unwrap();
@@ -608,7 +625,8 @@ impl WebSocketClient {
                     }
                 }
                 Err(e) => {
-                    error!("{:?}", e);
+                    error!("Reconnecting. Error: {:?}", e);
+                    let _ = self.wss_get_liquidity_with_program_id(base_mint, quote_mint, pool_data_sync.clone(), program_id.to_string());
                     break;
                 }
             }
@@ -665,8 +683,10 @@ impl WebSocketClient {
         }
     }
     #[allow(deprecated)]
-    pub async fn run_liquidity_change_task(f: impl Fn(WalletInformation, &LiquidityTaskConfig, &LiquidityPoolInfo, ClusterType),
-                                           args: WalletInformation,
+    pub async fn run_liquidity_change_task(f: impl Fn(
+        &RpcClient, &WalletInformation, &Keypair, &LiquidityPoolInfo, ClusterType),
+                                           rpc_client: &RpcClient,
+                                           owner: &Keypair,
                                            task_config: LiquidityTaskConfig,
                                            cluster_type: ClusterType,
                                            pool_data_sync: PoolDataSync) {
@@ -674,18 +694,87 @@ impl WebSocketClient {
         loop {
             let pool_data = pool_data_sync.lock().unwrap();
             if pool_data.liquidity_state.is_some() && pool_data.market_state.is_some() {
-                info!("Liquidity Pool Created");
+                info!("{}", "Liquidity Pool Information Created".bold());
                 let pool_info =
                     LiquidityPoolInfo::build(pool_data.liquidity_state.unwrap(), pool_data.market_state.unwrap(), cluster_type)
                         .expect("failed building liquidity pool info");
+                drop(pool_data);
 
                 let naive = chrono::NaiveDateTime::from_timestamp(pool_info.liquidity_state.pool_open_time as i64, 0);
                 let datetime: DateTime<chrono::Utc> = DateTime::from_utc(naive, chrono::Utc);
                 let new_date = datetime.format("%Y-%m-%d %H:%M:%S %Z");
-                info!("Pool Open Time: {}", new_date);
+                info!("Pool Open Time: {}", new_date.to_string().red());
 
                 let target_liquidity: f64 = task_config.target_liquidity;
                 info!("Target Liquidity: {} SOL", target_liquidity);
+
+                info!("Finding Liquidity Account");
+                let mut account = rpc_client.get_token_accounts_by_owner(
+                    &owner.pubkey(),
+                    TokenAccountsFilter::Mint(pool_info.lp_mint),
+                );
+
+                loop {
+                    if account.is_err() {
+                        account = rpc_client.get_token_accounts_by_owner(
+                            &owner.pubkey(),
+                            TokenAccountsFilter::Mint(pool_info.lp_mint),
+                        );
+                        continue;
+                    }
+
+                    if account.is_ok() {
+                        break;
+                    }
+                }
+
+                let account = account.unwrap();
+                let first_account = account.first();
+                let account_pubkey_str = match first_account {
+                    Some(e) => e,
+                    None => {
+                        error!("Liquidity Account not found");
+                        let mut pool_data = pool_data_sync.lock().unwrap();
+                        pool_data.task_done = true;
+                        break;
+                    }
+                };
+
+                info!("Liquidity Account: {}", account_pubkey_str.pubkey.clone());
+                let token_account = Pubkey::from_str(account_pubkey_str.pubkey.as_str()).unwrap();
+
+                let mut balance = 0u64;
+                let mut tries: u64 = 0u64;
+                loop {
+                    if tries >= 5 {
+                        break;
+                    }
+                    let b = match rpc_client.get_token_account_balance(&token_account) {
+                        Ok(a) => a,
+                        Err(_) => {
+                            break;
+                        }
+                    };
+                    let decimal = b.decimals;
+                    balance = (b.ui_amount.unwrap() * 10f64.powf(decimal as f64)) as u64;
+                    if balance > 1 {
+                        break;
+                    }
+                    tries += 1;
+                }
+
+                if balance == 0 {
+                    error!("Token Account is burned");
+                    break;
+                }
+
+                let wallet_information = WalletInformation {
+                    wallet: "".to_string(),
+                    wsol_account: Default::default(),
+                    token_account,
+                    balance,
+                    create_token_account_instruction: None,
+                };
 
                 loop {
                     let now = std::time::SystemTime::now();
@@ -697,9 +786,8 @@ impl WebSocketClient {
                     }
                 }
 
-                drop(pool_data);
                 info!("Checking for liquidity increase/decrease");
-                let mut current_liquidity  = task_config.initial_liquidity;
+                let mut current_liquidity = task_config.initial_liquidity;
                 loop {
                     let mut pool_data = pool_data_sync.lock().unwrap();
                     if pool_data.liquidity_amount.is_some() {
@@ -721,7 +809,7 @@ impl WebSocketClient {
                             drop(pool_data);
                             info!("Target Liquidity Reached");
                             info!("Liquidity: {} SOL", current_liquidity.to_string().green());
-                            f(args.clone(), &task_config, &pool_info, cluster_type);
+                            f(rpc_client, &wallet_information, owner, &pool_info, cluster_type);
                             break;
                         }
                     }

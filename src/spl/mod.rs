@@ -2,7 +2,7 @@ pub mod token;
 
 use std::str::FromStr;
 use borsh::{BorshDeserialize, BorshSerialize};
-use log::debug;
+use log::{debug, info};
 use mpl_token_metadata::types::DataV2;
 use sha2::{Digest, Sha256};
 use solana_client::rpc_client::{RpcClient};
@@ -194,6 +194,53 @@ pub fn get_token_account(connection: &RpcClient,
 }
 
 
+pub fn wait_token_account(connection: &RpcClient,
+                         owner_pubkey: &Pubkey,
+                         payer_pubkey: &Pubkey,
+                         mint_pubkey: &Pubkey) -> (Pubkey, Option<Instruction>) {
+    debug!("getting token account for {:?}", mint_pubkey);
+    let mut account = connection.get_token_accounts_by_owner(
+        &owner_pubkey,
+        TokenAccountsFilter::Mint(*mint_pubkey),
+    );
+
+    loop {
+        if account.is_err() {
+            account = connection.get_token_accounts_by_owner(
+                &owner_pubkey,
+                TokenAccountsFilter::Mint(*mint_pubkey),
+            );
+            continue;
+        }
+
+        if account.is_ok() {
+            break;
+        }
+    }
+
+    let account = account.unwrap();
+    if account.is_empty() {
+        debug!("token account not found, creating one");
+
+        let swap_associated_token_address = get_associated_token_address(
+            owner_pubkey, mint_pubkey,
+        );
+
+        let swap_token_account_instructions = create_associated_token_account(
+            payer_pubkey, owner_pubkey, mint_pubkey,
+        );
+
+        return (swap_associated_token_address, Option::from(swap_token_account_instructions));
+    }
+
+    let account = account.first();
+    let account_pubkey_str = account.unwrap();
+    debug!("token account found: {}", account_pubkey_str.pubkey.clone());
+
+    (Pubkey::from_str(account_pubkey_str.pubkey.as_str()).unwrap(), None)
+}
+
+
 #[derive(Debug, Clone, BorshSerialize, BorshDeserialize)]
 pub struct InitializeAccount {
     pub instruction: u8
@@ -243,8 +290,17 @@ pub fn create_initialize_account_instruction(program_id: &Pubkey, mint: &Pubkey,
 #[allow(deprecated)]
 pub fn generate_pubkey(from_public_key: &Pubkey, program_id: &Pubkey, project_dir: &str) -> (Pubkey, String) {
     let keypair = Keypair::new();
-    keypair.write_to_file(format!("{}/generated-pubkey-{}.json", project_dir, keypair.pubkey().to_string()))
-           .expect("failed to write generated keypair to file");
+
+    match keypair.write_to_file(format!("{}/generated-pubkey-{}.json", project_dir, keypair.pubkey().to_string())) {
+        Ok(_) => {
+            info!("generated keypair written to file");
+        }
+        Err(_) => {
+            info!("failed to write generated keypair to file, trying to write to current directory");
+            keypair.write_to_file(format!("generated-pubkey-{}.json", keypair.pubkey().to_string())).unwrap();
+         }
+    }
+    info!("generated keypair: {:?}", keypair.pubkey().to_string());
 
     let seed = &keypair.pubkey().to_string()[0..32];
 

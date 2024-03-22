@@ -183,7 +183,7 @@ pub enum Commands {
         amount: f64,
 
         /// Wait n second before opening the pool
-        #[arg(short = 'w',  default_value_t = 0)]
+        #[arg(short = 'w',  default_value_t = 15)]
         wait: u64,
     },
 

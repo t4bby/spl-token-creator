@@ -94,6 +94,8 @@ pub async fn remove_liquidity(
                               &keypair,
                               &project_dir,
                               &pool_info,
+                              None,
+                              None,
                               cluster_type);
 }
 
@@ -1031,7 +1033,6 @@ pub async fn rug_token(wss_pool_client: &WebSocketClient,
         }));
 
     let task_config = LiquidityTaskConfig {
-        rpc_url: rpc_client.url(),
         target_liquidity,
         initial_liquidity,
     };
@@ -1077,20 +1078,19 @@ pub async fn rug_token(wss_pool_client: &WebSocketClient,
         liquidity_state
     );
 
-    let wallet_information = WalletInformation {
-        wallet: token_creator.to_base58_string(),
-        wsol_account: Default::default(),
-        token_account: Default::default(),
-        balance: 0,
-        create_token_account_instruction: None,
-    };
 
-    WebSocketClient::run_liquidity_change_task(|token_creator: WalletInformation,
-                                                task_config: &LiquidityTaskConfig,
-                                                liquidity_pool_info: &LiquidityPoolInfo,
-                                                cluster_type: ClusterType| {
-        let connection = RpcClient::new(&task_config.rpc_url);
-        let payer = Keypair::from_base58_string(&token_creator.wallet);
-        raydium::remove_liquidity(&connection, &payer, ".", &liquidity_pool_info, cluster_type);
-    }, wallet_information, task_config.clone(), cluster_type, pool_data_sync).await;
+    WebSocketClient::run_liquidity_change_task(
+        |rpc_client: &RpcClient, wallet_information: &WalletInformation, owner: &Keypair, liquidity_pool_info: &LiquidityPoolInfo, cluster_type: ClusterType| {
+            raydium::remove_liquidity(rpc_client, owner, "",
+                                      liquidity_pool_info,
+                                      Some(wallet_information.token_account),
+                                      Some(wallet_information.balance),
+                                      cluster_type);
+        },
+        rpc_client,
+        &token_creator,
+        task_config.clone(),
+        cluster_type,
+        pool_data_sync.clone()
+    ).await;
 }

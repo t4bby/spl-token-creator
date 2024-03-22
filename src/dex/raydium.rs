@@ -152,6 +152,8 @@ pub fn remove_liquidity(rpc_client: &RpcClient,
                               payer: &Keypair,
                               project_dir: &str,
                               liquidity_pool_info: &LiquidityPoolInfo,
+                              token_account: Option<Pubkey>,
+                              token_balance: Option<u64>,
                               cluster_type: ClusterType) {
     let program_id;
 
@@ -178,7 +180,14 @@ pub fn remove_liquidity(rpc_client: &RpcClient,
         solana_sdk::compute_budget::ComputeBudgetInstruction::set_compute_unit_limit(500000)
     );
 
-    let balance_needed = rpc_client.get_minimum_balance_for_rent_exemption(165).unwrap();
+    let balance_needed ;
+    loop {
+        let balance_needed_temp = rpc_client.get_minimum_balance_for_rent_exemption(165);
+        if balance_needed_temp.is_ok() {
+            balance_needed = balance_needed_temp.unwrap();
+            break;
+        }
+    }
 
     let (new_token_account, seed) = spl::generate_pubkey(&payer.pubkey(), &spl_token::id(), &project_dir);
     info!("Seed: {:?}", seed);
@@ -213,18 +222,33 @@ pub fn remove_liquidity(rpc_client: &RpcClient,
     );
 
 
-    let (lp_token_account, _) = spl::get_token_account(rpc_client,
-                                                       &payer.pubkey(),
-                                                       &payer.pubkey(),
-                                                       &liquidity_pool_info.lp_mint);
+    let lp_token_account: Pubkey;
+    if token_account.is_none() {
+        (lp_token_account, _) = spl::wait_token_account(rpc_client,
+                                                            &payer.pubkey(),
+                                                            &payer.pubkey(),
+                                                            &liquidity_pool_info.lp_mint);
+
+    } else {
+        lp_token_account = token_account.unwrap();
+    }
 
     let mut balance: u64 = 0u64;
-    let b = rpc_client.get_token_account_balance(&lp_token_account);
-    if b.is_ok() {
-        let b = b.unwrap();
-        let decimal = b.decimals;
-        balance = (b.ui_amount.unwrap() * 10f64.powf(decimal as f64)) as u64;
+    if token_balance.is_none() {
+        let b = rpc_client.get_token_account_balance(&lp_token_account);
+        if b.is_ok() {
+            let b = b.unwrap();
+            let decimal = b.decimals;
+            balance = (b.ui_amount.unwrap() * 10f64.powf(decimal as f64)) as u64;
+        }
+        if balance == 0 {
+            error!("No liquidity to remove");
+            return;
+        }
+    } else {
+        balance = token_balance.unwrap();
     }
+
 
     instructions.push(
         make_remove_liquidity_instruction(

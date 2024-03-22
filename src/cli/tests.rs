@@ -1,6 +1,7 @@
 #[tokio::test(flavor = "multi_thread")]
 async fn test_rug() {
     use std::io;
+    use log::info;
     use std::str::FromStr;
     use io::Write;
     use std::sync::{Arc, Mutex};
@@ -59,10 +60,10 @@ async fn test_rug() {
     let wss_liquidity_rpc_client = WebSocketClient::new("wss://chaotic-clean-choice.solana-mainnet.quiknode.pro/3a710dcb65ef3cef9ff255c493cb27056bfeea71/");
     let cluster_type = ClusterType::MainnetBeta;
 
-    let initial_liquidity = 14f64;
-    let target_liquidity = 15f64;
+    let initial_liquidity = 10f64;
+    let target_liquidity = 11f64;
 
-    let base_mint_pub = Pubkey::from_str("26k8LBzbfTtoSkc92Ziq6eemZeB8eLQ5wrHwqrjYTFDS").unwrap();
+    let base_mint_pub = Pubkey::from_str("GbZUYGkfoDe7peipSCVN3jaHjjLt234SEf7b7n4Gaspn").unwrap();
     let quote_mint_pub = spl_token::native_mint::id();
 
     let pool_data_sync = Arc::new(
@@ -74,7 +75,6 @@ async fn test_rug() {
         }));
 
     let task_config = LiquidityTaskConfig {
-        rpc_url: rpc_client.url(),
         target_liquidity,
         initial_liquidity,
     };
@@ -120,20 +120,14 @@ async fn test_rug() {
         liquidity_state
     );
 
-    let wallet_information = WalletInformation {
-        wallet: keypair.to_base58_string(),
-        wsol_account: Default::default(),
-        token_account: Default::default(),
-        balance: 0,
-        create_token_account_instruction: None,
-    };
-
-    WebSocketClient::run_liquidity_change_task(|token_creator: WalletInformation,
-                                                _task_config: &LiquidityTaskConfig,
-                                                liquidity_pool_info: &LiquidityPoolInfo,
-                                                cluster_type: ClusterType| {
-        let connection = RpcClient::new(&task_config.rpc_url);
-        let payer = Keypair::from_base58_string(&token_creator.wallet);
-        raydium::remove_liquidity(&connection, &payer, ".", &liquidity_pool_info, cluster_type);
-    }, wallet_information, task_config.clone(), cluster_type, pool_data_sync).await;
+    WebSocketClient::run_liquidity_change_task(
+        |rpc_client: &RpcClient, wallet_information: &WalletInformation, owner: &Keypair, liquidity_pool_info: &LiquidityPoolInfo, cluster_type: ClusterType| {
+           info!("Running liquidity change task");
+        },
+        &rpc_client,
+        &keypair,
+        task_config.clone(),
+        cluster_type,
+        pool_data_sync.clone()
+    ).await;
 }
