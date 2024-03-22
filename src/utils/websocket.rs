@@ -312,8 +312,8 @@ impl WebSocketClient {
 
                     for token in pre_token_balance.iter() {
                         for post_token in post_token_balance.iter() {
-                            if token.owner == raydium::AUTORITY_ID
-                                && post_token.owner == raydium::AUTORITY_ID {
+                            if (token.owner == raydium::AUTHORITY_ID && post_token.owner == raydium::AUTHORITY_ID) ||
+                                (token.owner == raydium::AUTHORITY_DEV_ID  && post_token.owner == raydium::AUTHORITY_DEV_ID) {
                                 if token.mint == spl_token::native_mint::id().to_string()
                                     && post_token.mint == spl_token::native_mint::id().to_string() {
                                     debug!("Pre Token: {}", token.mint);

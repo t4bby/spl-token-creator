@@ -20,7 +20,8 @@ use crate::dex::raydium::pool::LiquidityPoolInfo;
 
 pub const AMM_PROGRAM_ID: &str = "675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8";
 pub const AMM_PROGRAM_DEV_ID: &str = "HWy1jotHpo6UqeQxx49dpYYdQB8wj9Qk9MdxwjLvDHB8";
-pub const AUTORITY_ID: &str = "5Q544fKrFoe6tsEbD7S8EmxGTJYAKtTVhAW5Q5pge4j1";
+pub const AUTHORITY_ID: &str = "5Q544fKrFoe6tsEbD7S8EmxGTJYAKtTVhAW5Q5pge4j1";
+pub const AUTHORITY_DEV_ID: &str = "DbQqP6ehDYmeYjcBaMRuA8tAJY1EjDUz9DpwSLjaQqfC";
 
 pub fn make_remove_liquidity_instruction(
     program_id: &Pubkey,
