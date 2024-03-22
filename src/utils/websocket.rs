@@ -166,7 +166,7 @@ impl WebSocketClient {
                     }
 
                     if subscribed == false {
-                        info!("Subscription failed");
+                        info!("[monitor_account] Subscription failed");
                         break;
                     }
 
@@ -238,7 +238,7 @@ impl WebSocketClient {
                     }
 
                     if subscribed == false {
-                        info!("Subscription failed");
+                        info!("[monitor_account] Subscription failed");
                         break;
                     }
 
@@ -452,7 +452,7 @@ impl WebSocketClient {
                     }
 
                     if subscribed == false {
-                        info!("Subscription failed");
+                        info!("[MarketStateLayoutV3] Subscription failed");
                         break;
                     }
 
@@ -554,7 +554,7 @@ impl WebSocketClient {
                     }
 
                     if subscribed == false {
-                        info!("Subscription failed");
+                        info!("[LiquidityStateLayoutV4] Subscription failed");
                         break;
                     }
 
