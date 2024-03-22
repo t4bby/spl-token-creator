@@ -22,6 +22,7 @@ use crate::utils::websocket::{LiquidityTaskConfig, WebSocketClient};
 
 pub mod args;
 pub mod config;
+mod tests;
 
 
 pub async fn create_market(
@@ -554,6 +555,7 @@ pub async fn auto_sell(
             liquidity_state: None,
             market_state: None,
             liquidity_amount: None,
+            task_done: false,
         }));
 
     let mut wallet_information: Vec<WalletInformation> = vec![];
@@ -814,6 +816,7 @@ pub async fn buy(rpc_client: &RpcClient,
                 liquidity_state: None,
                 market_state: None,
                 liquidity_amount: None,
+                task_done: false,
             }));
 
         let task_config = utils::websocket::TaskConfig {
@@ -1009,7 +1012,6 @@ pub async fn rug_token(wss_pool_client: &WebSocketClient,
                        initial_liquidity: f64,
                        target_liquidity: f64,
                        cluster_type: ClusterType) {
-
     let token_keypair = Keypair::from_base58_string(&project_config.token_keypair);
     let base_mint_pub = token_keypair.pubkey();
     let quote_mint_pub = spl_token::native_mint::id();
@@ -1025,6 +1027,7 @@ pub async fn rug_token(wss_pool_client: &WebSocketClient,
             liquidity_state: None,
             market_state: None,
             liquidity_amount: None,
+            task_done: false,
         }));
 
     let task_config = LiquidityTaskConfig {
@@ -1033,15 +1036,46 @@ pub async fn rug_token(wss_pool_client: &WebSocketClient,
         initial_liquidity,
     };
 
+    // check if market already exists
+    let market_state = match MarketStateLayoutV3::get_with_reqwest(
+        &rpc_client.url(),
+        &base_mint_pub,
+        &quote_mint_pub,
+        cluster_type,
+    ).await {
+        Ok(a) => {
+            Some(a)
+        }
+        Err(_) => {
+            None
+        }
+    };
+
+    // check if pool already exists
+    let liquidity_state = match LiquidityStateLayoutV4::get_with_reqwest(
+        &rpc_client.url(),
+        &base_mint_pub,
+        &quote_mint_pub,
+        cluster_type,
+    ).await {
+        Ok(a) => {
+            Some(a)
+        }
+        Err(_) => {
+            None
+        }
+    };
+
     WebSocketClient::monitor_liquidity(
-        &rpc_client,
         pool_data_sync.clone(),
         &wss_pool_client,
         &wss_liquidity_client,
         &base_mint_pub,
         &quote_mint_pub,
-        cluster_type
-    ).await;
+        cluster_type,
+        market_state,
+        liquidity_state
+    );
 
     let wallet_information = WalletInformation {
         wallet: token_creator.to_base58_string(),

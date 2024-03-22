@@ -25,7 +25,7 @@ pub struct CliArgs {
 
     /// Custom Keypair (base58) file (ex. wallet.yaml)
     #[arg(short = 'k', long)]
-    pub keypair: String
+    pub keypair: Option<String>
 }
 
 #[derive(Debug, Subcommand)]

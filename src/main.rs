@@ -103,17 +103,21 @@ async fn main() {
         }
     };
 
-    let keypair;
-    match WalletFile::from_config_file(&args.keypair) {
-        Ok(a) => {
-            keypair = Keypair::from_base58_string(&a.key)
-        }
+    let mut has_keypair = false;
+    let mut keypair = Keypair::new();
+    if args.keypair.is_some() {
+        match WalletFile::from_config_file(&args.keypair.unwrap()) {
+            Ok(a) => {
+                has_keypair = true;
+                keypair = Keypair::from_base58_string(&a.key)
+            }
 
-        Err(e) => {
-            error!("Error reading keypair file: {:?}", e);
-            return;
-        }
-    };
+            Err(e) => {
+                error!("Error reading keypair file: {:?}", e);
+                return;
+            }
+        };
+    }
 
     let rpc_client;
     let wss_liquidity_rpc_client;
@@ -137,7 +141,7 @@ async fn main() {
 
     info!("Cluster type: {}", cluster_type_string);
 
-    if project_empty {
+    if project_empty && has_keypair == false {
         match args.command {
             Commands::MonitorAccount { address } => {
                 cli::monitor_account(
@@ -271,6 +275,26 @@ async fn main() {
                 return;
             },
 
+            Commands::PoolInformation { ref mint, ref quote_mint } => {
+                cli::get_pool_information(
+                    &rpc_client,
+                    &mint,
+                    &quote_mint,
+                    cluster_type
+                ).await;
+                return;
+            }
+            _ => {}
+        }
+    }
+
+    if has_keypair == false {
+        error!("Keypair is required for this command");
+        return;
+    }
+
+    if project_empty {
+        match args.command {
             Commands::Buy { mint, quote_mint, amount, wait, skip, overhead } => {
                 cli::buy(
                     &rpc_client,
@@ -286,7 +310,6 @@ async fn main() {
                 ).await;
                 return;
             }
-
             Commands::Sell { mint, quote_mint, percent, skip } => {
                 cli::sell(
                     &rpc_client,
@@ -295,16 +318,6 @@ async fn main() {
                     &quote_mint,
                     percent,
                     skip,
-                    cluster_type
-                ).await;
-                return;
-            }
-
-            Commands::PoolInformation { ref mint, ref quote_mint } => {
-                cli::get_pool_information(
-                    &rpc_client,
-                    &mint,
-                    &quote_mint,
                     cluster_type
                 ).await;
                 return;
