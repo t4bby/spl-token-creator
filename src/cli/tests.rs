@@ -56,7 +56,6 @@ async fn test_rug() {
     let keypair = Keypair::from_base58_string("51nVoW8aHGnfvjorXJPuLmAuG8mVPeb4HABrHLK9FEkvHiE8Ebuq4bi2G1zcaqbZjmyQNyFhefce5y3Qt4Wuvbr9");
     let rpc_client = RpcClient::new("https://solana-mainnet.g.alchemy.com/v2/c0XkSgm_psC_JZmca4iNH51GO9su5j9Q");
     let wss_pool_rpc_client = WebSocketClient::new("wss://rpc.ankr.com/solana/ws/56b61a7d360a9704960c1cc45fc16e5a4402a8661781c09fee3502a230fbc0d7");
-    let wss_liquidity_rpc_client = WebSocketClient::new("wss://chaotic-clean-choice.solana-mainnet.quiknode.pro/3a710dcb65ef3cef9ff255c493cb27056bfeea71/");
     let cluster_type = ClusterType::MainnetBeta;
 
     let initial_liquidity = 10f64;
@@ -111,7 +110,6 @@ async fn test_rug() {
     WebSocketClient::monitor_liquidity(
         pool_data_sync.clone(),
         &wss_pool_rpc_client,
-        &wss_liquidity_rpc_client,
         &base_mint_pub,
         &quote_mint_pub,
         cluster_type,
@@ -189,7 +187,6 @@ async fn test_rug_v2() {
     let keypair = Keypair::from_base58_string("51nVoW8aHGnfvjorXJPuLmAuG8mVPeb4HABrHLK9FEkvHiE8Ebuq4bi2G1zcaqbZjmyQNyFhefce5y3Qt4Wuvbr9");
     let rpc_client = RpcClient::new("https://solana-mainnet.g.alchemy.com/v2/c0XkSgm_psC_JZmca4iNH51GO9su5j9Q");
     let wss_pool_rpc_client = WebSocketClient::new("wss://rpc.ankr.com/solana/ws/56b61a7d360a9704960c1cc45fc16e5a4402a8661781c09fee3502a230fbc0d7");
-    let wss_liquidity_rpc_client = WebSocketClient::new("wss://chaotic-clean-choice.solana-mainnet.quiknode.pro/3a710dcb65ef3cef9ff255c493cb27056bfeea71/");
     let cluster_type = ClusterType::MainnetBeta;
 
     let initial_liquidity = 10f64;
@@ -244,7 +241,6 @@ async fn test_rug_v2() {
     WebSocketClient::monitor_liquidity(
         pool_data_sync.clone(),
         &wss_pool_rpc_client,
-        &wss_liquidity_rpc_client,
         &base_mint_pub,
         &quote_mint_pub,
         cluster_type,

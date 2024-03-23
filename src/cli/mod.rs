@@ -18,7 +18,7 @@ use crate::cli::config::{Config, LiquidityConfig, MarketConfig};
 use crate::dex::raydium::layout::{LiquidityStateLayoutV4, MarketStateLayoutV3};
 use crate::dex::raydium::pool::LiquidityPoolInfo;
 use crate::dex::raydium::swap;
-use crate::utils::websocket::{LiquidityTaskConfig, PoolDataSync, WebSocketClient};
+use crate::utils::websocket::{LiquidityTaskConfig, WebSocketClient};
 
 pub mod args;
 pub mod config;
@@ -1003,7 +1003,9 @@ pub async fn create_wsol(rpc_client: &RpcClient, project_dir: &str,
 }
 
 pub async fn monitor_account(rpc_client: &RpcClient, wss_pool_client: &WebSocketClient,
-                             wss_liquid_client: &WebSocketClient, address: &str, cluster_type: ClusterType) {
+                             wss_liquid_client: &WebSocketClient,
+                             address: &str, cluster_type: ClusterType,
+                             only_balance: bool, only_trade: bool) {
     info!("Monitoring account changes for {}", address.bold().green());
 
     let base_mint_pub = Pubkey::from_str(address).unwrap();
@@ -1047,40 +1049,51 @@ pub async fn monitor_account(rpc_client: &RpcClient, wss_pool_client: &WebSocket
         }
     };
 
-    WebSocketClient::monitor_liquidity(
-        pool_data_sync.clone(),
-        &wss_pool_client,
-        &wss_liquid_client,
-        &base_mint_pub,
-        &quote_mint_pub,
-        cluster_type,
-        market_state,
-        liquidity_state
-    );
+    if market_state.is_some() && liquidity_state.is_some() {
+        info!("[Monitor] Market and Liquidity found");
+        let mut pool_data = pool_data_sync.lock().unwrap();
+        pool_data.liquidity_state = Some(liquidity_state.unwrap());
+        pool_data.market_state = Some(market_state.unwrap());
+    } else if market_state.is_some() && liquidity_state.is_none() {
+        info!("[Monitor] Market found, waiting for liquidity pool");
+        let mut pool_data = pool_data_sync.lock().unwrap();
+        pool_data.market_state = Some(market_state.unwrap());
+        WebSocketClient::wait_for_liquidity_pool(pool_data_sync.clone(), &wss_pool_client, &base_mint_pub, &quote_mint_pub, cluster_type)
+    } else {
+        info!("[Monitor] Market and Liquidity not found. Waiting for market and pool");
+        WebSocketClient::wait_for_pool(pool_data_sync.clone(), &wss_pool_client, &base_mint_pub, &quote_mint_pub, cluster_type);
+    }
 
-    loop {
-        let pool_data = pool_data_sync.lock().unwrap();
-        if pool_data.liquidity_state.is_some() && pool_data.market_state.is_some() {
-            let mut current_liquidity = 0f64;
-            loop {
-                let pool_data = pool_data_sync.lock().unwrap();
-                if pool_data.liquidity_amount.is_some() {
-                    let temp_liquidity = lamports_to_sol(pool_data.liquidity_amount.unwrap());
-                    // check if liquidity is the same
-                    if current_liquidity == temp_liquidity {
-                        continue;
-                    }
-                    // update current liquidity
-                    current_liquidity = temp_liquidity;
-                    info!("[MONITOR] Liquidity: {} SOL", current_liquidity.to_string().green());
-                }
-            }
-        }
+    if only_trade {
+        let base_mint = base_mint_pub.clone();
+        let db_1 = pool_data_sync.clone();
+        let ws_1 = wss_liquid_client.clone();
+        tokio::spawn(async move {
+            ws_1.wss_get_liquidity_data(&base_mint, db_1).await;
+        });
+    }
+
+    if only_balance {
+        let db_2 = pool_data_sync.clone();
+        let ws_2 = wss_pool_client.clone();
+        ws_2.wss_get_vault_balance(db_2).await;
+    }
+
+    if only_balance == false && only_trade == false {
+        let base_mint = base_mint_pub.clone();
+        let db_3 = pool_data_sync.clone();
+        let ws_3 = wss_liquid_client.clone();
+        tokio::spawn(async move {
+            ws_3.wss_get_liquidity_data(&base_mint, db_3).await;
+        });
+
+        let db_4 = pool_data_sync.clone();
+        let ws_4 = wss_pool_client.clone();
+        ws_4.wss_get_vault_balance(db_4).await;
     }
 }
 
 pub async fn rug_token(wss_pool_client: &WebSocketClient,
-                       wss_liquidity_client: &WebSocketClient,
                        token_creator: &Keypair,
                        rpc_client: &RpcClient,
                        project_config: &ProjectConfig,
@@ -1143,7 +1156,6 @@ pub async fn rug_token(wss_pool_client: &WebSocketClient,
     WebSocketClient::monitor_liquidity(
         pool_data_sync.clone(),
         &wss_pool_client,
-        &wss_liquidity_client,
         &base_mint_pub,
         &quote_mint_pub,
         cluster_type,

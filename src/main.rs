@@ -143,13 +143,15 @@ async fn main() {
 
     if project_empty && has_keypair == false {
         match args.command {
-            Commands::MonitorAccount { address } => {
+            Commands::MonitorAccount { address, only_balance, only_trade } => {
                 cli::monitor_account(
                     &rpc_client,
                     &wss_pool_rpc_client,
                     &wss_liquidity_rpc_client,
                     &address,
-                    cluster_type
+                    cluster_type,
+                    only_balance,
+                    only_trade
                 ).await;
                 return;
             },
@@ -554,7 +556,6 @@ async fn main() {
         Commands::Rug { initial, target } => {
             cli::rug_token(
                 &wss_pool_rpc_client,
-                &wss_liquidity_rpc_client,
                 &keypair,
                 &rpc_client,
                 &project_config,

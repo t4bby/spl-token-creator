@@ -116,7 +116,6 @@ impl WebSocketClient {
         }
     }
 
-    #[async_recursion]
     pub async fn wss_get_vault_balance(&self, pool_data_sync: PoolDataSync) {
         let vault_address;
         info!("[ACM] Waiting for vault address");
@@ -143,7 +142,7 @@ impl WebSocketClient {
 
         let params = json!({
         "encoding": "base64",
-        "commitment": "finalized"
+        "commitment": "processed"
         });
 
         socket.send(
@@ -163,6 +162,8 @@ impl WebSocketClient {
 
         let mut subscribed = false;
         let mut subscription_id;
+        let mut account_balance = 0u64;
+
         loop {
             match socket.read() {
                 Ok(e) => {
@@ -190,11 +191,22 @@ impl WebSocketClient {
 
                     if subscribed {
                         let balance = Self::parse_balance(parsed);
-                        debug!("[ACM] Account Balance: {} SOL", lamports_to_sol(balance.unwrap_or(0)));
-
                         let mut pool_data = pool_data_sync.lock().unwrap();
                         if balance.is_some() {
-                            pool_data.liquidity_amount = Some(balance.unwrap());
+                            let balance = balance.unwrap();
+                            pool_data.liquidity_amount = Some(balance);
+                            if account_balance == balance {
+                                continue;
+                            }
+                            if account_balance < balance || account_balance > balance {
+                                if account_balance < balance {
+                                    info!("[BUY] +{} SOL", lamports_to_sol(balance - account_balance).to_string().green());
+                                } else {
+                                    info!("[SELL] -{} SOL", lamports_to_sol(account_balance - balance).to_string().red());
+                                }
+                                account_balance = balance;
+                                info!("Vault Balance: {} SOL", lamports_to_sol(balance).to_string().green());
+                            }
                         }
                         if pool_data.task_done {
                             break;
@@ -208,8 +220,7 @@ impl WebSocketClient {
                 }
                 Err(e) => {
                     // Reconnect
-                    error!("[ACM] Reconnecting. Error: {:?}", e);
-                    let _ = self.wss_get_vault_balance(pool_data_sync.clone());
+                    error!("[ACM] Error: {:?}", e);
                     break;
                 }
             }
@@ -453,7 +464,6 @@ impl WebSocketClient {
 
     pub fn monitor_liquidity(pool_data_sync: PoolDataSync,
                              wss_pool: &WebSocketClient,
-                             wss_liquidity: &WebSocketClient,
                              base_mint: &Pubkey,
                              quote_mint: &Pubkey,
                              cluster_type: ClusterType,
@@ -473,14 +483,6 @@ impl WebSocketClient {
             info!("[LM] Market and Liquidity not found. Waiting for market and pool");
             Self::wait_for_pool(pool_data_sync.clone(), &wss_pool, base_mint, quote_mint, cluster_type);
         }
-
-        let base_mint = base_mint.clone();
-        let db_1 = pool_data_sync.clone();
-        let ws_1 = wss_liquidity.clone();
-
-        tokio::spawn(async move {
-            ws_1.wss_get_liquidity_data(&base_mint, db_1).await;
-        });
 
         let db_2 = pool_data_sync.clone();
         let ws_2 = wss_pool.clone();

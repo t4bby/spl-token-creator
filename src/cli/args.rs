@@ -133,6 +133,12 @@ pub enum Commands {
         /// Monitor using websocket if the account changes
         #[arg(short = 'a', long)]
         address: String,
+
+        #[arg(long, default_value_t = false)]
+        only_balance: bool,
+
+        #[arg(long, default_value_t = false)]
+        only_trade: bool
     },
 
     /// Revoke the token mint authority
@@ -183,7 +189,7 @@ pub enum Commands {
         amount: f64,
 
         /// Wait n second before opening the pool
-        #[arg(short = 'w',  default_value_t = 15)]
+        #[arg(short = 'w',  default_value_t = 30)]
         wait: u64,
     },
 
