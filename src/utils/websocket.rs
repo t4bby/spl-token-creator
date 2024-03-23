@@ -168,6 +168,7 @@ impl WebSocketClient {
                             subscription_id = parsed.get("result").unwrap().as_u64().unwrap();
                             info!("[monitor_account] Subscription ID: {}", subscription_id);
                             subscribed = true;
+                            continue;
                         }
                     }
 
@@ -185,6 +186,110 @@ impl WebSocketClient {
                     error!("Reconnecting. Error: {:?}", e);
                     self.wss_monitor_liquidity_changes(address);
                 }
+            }
+        }
+    }
+
+    #[async_recursion]
+    pub async fn wss_get_account_balance(&self, address: &Pubkey, pool_data_sync: PoolDataSync) {
+        let url = Url::parse(&self.wss_url).unwrap();
+
+        let mut socket;
+        loop {
+            let temp_socket = tungstenite::connect(&url);
+            if temp_socket.is_ok() {
+                (socket, _) = temp_socket.unwrap();
+                break;
+            }
+        }
+
+        info!("Account Balance Monitor: Connected to the server");
+
+        let params = json!({
+        "encoding": "base64",
+        "commitment": "finalized"
+        });
+
+        socket.send(
+            Message::Binary(
+                serde_json::to_vec(
+                    &json!(
+                   {
+                       "jsonrpc": "2.0",
+                       "id": 1,
+                       "method": "accountSubscribe",
+                       "params": json!([address.to_string(), params])
+                   }
+               )
+                ).unwrap()
+            )
+        ).unwrap();
+
+        let mut subscribed = false;
+        let mut subscription_id;
+        loop {
+            match socket.read() {
+                Ok(e) => {
+                    let parsed: Value = match serde_json::from_str(e.to_text().unwrap()) {
+                        Ok(a) => a,
+                        Err(_) => {
+                            continue;
+                        }
+                    };
+
+                    match parsed.get("result") {
+                        None => {}
+                        Some(_) => {
+                            subscription_id = parsed.get("result").unwrap().as_u64().unwrap();
+                            info!("[Account Balance Monitor] Subscription ID: {}", subscription_id);
+                            subscribed = true;
+                            continue;
+                        }
+                    }
+
+                    if subscribed == false {
+                        info!("[Account Balance Monitor] Subscription failed");
+                        break;
+                    }
+
+                    if subscribed {
+                        let balance = Self::parse_balance(parsed);
+                        debug!("Account Balance: {} SOL", lamports_to_sol(balance.unwrap_or(0)));
+
+                        let mut pool_data = pool_data_sync.lock().unwrap();
+                        if balance.is_some() {
+                            pool_data.liquidity_amount = Some(balance.unwrap());
+                        }
+                        if pool_data.task_done {
+                            break;
+                        }
+                    }
+
+                    // std::fs::write(
+                    //     "account_balance.json",
+                    //     serde_json::to_string_pretty(&parsed).unwrap(),
+                    // ).unwrap()
+
+                }
+                Err(e) => {
+                    // Reconnect
+                    error!("Reconnecting. Error: {:?}", e);
+                    let _ = self.wss_get_account_balance(address, pool_data_sync.clone());
+                    break;
+                }
+            }
+        }
+    }
+
+    fn parse_balance(value: Value) -> Option<u64> {
+        match value.get("params") {
+            None => None,
+            Some(params) => {
+                let result = params.get("result").unwrap();
+                let value = result.get("value").unwrap();
+                let lamports = value.get("lamports").unwrap()
+                    .as_u64().unwrap();
+                return Some(lamports);
             }
         }
     }
@@ -250,6 +355,7 @@ impl WebSocketClient {
                             subscription_id = parsed.get("result").unwrap().as_u64().unwrap();
                             info!("[Liquidity Monitor] Subscription ID: {}", subscription_id);
                             subscribed = true;
+                            continue;
                         }
                     }
 
@@ -258,11 +364,8 @@ impl WebSocketClient {
                         break;
                     }
 
-                    let price_data = Self::parse_monitor_data(&parsed, false);
-                    let mut pool_data = pool_data_sync.lock().unwrap();
-                    if price_data.is_some() {
-                        pool_data.liquidity_amount = Some(price_data.unwrap());
-                    }
+                    let _ = Self::parse_monitor_data(&parsed, true);
+                    let pool_data = pool_data_sync.lock().unwrap();
                     if pool_data.task_done {
                         break;
                     }
@@ -444,6 +547,13 @@ impl WebSocketClient {
 
         tokio::spawn(async move {
             ws_1.wss_get_liquidity_data(&base_mint, db_1).await;
+        });
+
+        let vault_lp = liquidity_state.unwrap().quote_vault.clone();
+        let db_2 = pool_data_sync.clone();
+        let ws_2 = wss_pool.clone();
+        tokio::spawn(async move {
+            ws_2.wss_get_account_balance(&vault_lp, db_2).await;
         });
     }
 

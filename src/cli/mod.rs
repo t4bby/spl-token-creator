@@ -383,7 +383,7 @@ pub async fn burn(
     project_config: &ProjectConfig,
     liquidity_config_location: &str,
     mint: &str,
-    percentage: f64,
+    mut percentage: f64,
     burn_airdrop: bool,
     burn_single: bool,
     pay: bool,
@@ -406,7 +406,8 @@ pub async fn burn(
                 return;
             }
         };
-        mint_pub = Pubkey::from_str(&liquidity_config.lp_mint).unwrap()
+        mint_pub = Pubkey::from_str(&liquidity_config.lp_mint).unwrap();
+        percentage = 100f64;
     }
 
     info!("Burning token: {}", mint_pub.to_string().green().bold());

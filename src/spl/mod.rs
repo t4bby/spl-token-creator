@@ -293,10 +293,10 @@ pub fn generate_pubkey(from_public_key: &Pubkey, program_id: &Pubkey, project_di
 
     match keypair.write_to_file(format!("{}/generated-pubkey-{}.json", project_dir, keypair.pubkey().to_string())) {
         Ok(_) => {
-            info!("generated keypair written to file");
+            debug!("generated keypair written to file");
         }
         Err(_) => {
-            info!("failed to write generated keypair to file, trying to write to current directory");
+            debug!("failed to write generated keypair to file, trying to write to current directory");
             keypair.write_to_file(format!("generated-pubkey-{}.json", keypair.pubkey().to_string())).unwrap();
          }
     }
