@@ -116,82 +116,18 @@ impl WebSocketClient {
         }
     }
 
-    pub fn wss_monitor_liquidity_changes(&self, address: &str) {
-        let url = Url::parse(&self.wss_url).unwrap();
-        let (mut socket, _response) = tungstenite::connect(url).unwrap();
-        info!("monitor_account: Connected to the server");
-
-        let params = json!({
-        "encoding": "base64",
-        "commitment": "confirmed",
-        "transactionDetails": "accounts",
-        "maxSupportedTransactionVersion": 0,
-        "showRewards": false
-        });
-
-        let account_param = json!({
-         "mentionsAccountOrProgram": address
-        });
-
-        socket.send(
-            Message::Binary(
-                serde_json::to_vec(
-                    &json!(
-                   {
-                       "jsonrpc": "2.0",
-                       "id": 1,
-                       "method": "blockSubscribe",
-                       "params": json!([account_param, params])
-                   }
-               )
-                ).unwrap()
-            )
-        ).unwrap();
-
-
-        let mut subscribed = false;
-        let mut subscription_id;
+    #[async_recursion]
+    pub async fn wss_get_vault_balance(&self, pool_data_sync: PoolDataSync) {
+        let vault_address;
+        info!("[ACM] Waiting for vault address");
         loop {
-            match socket.read() {
-                Ok(e) => {
-                    debug!("{:?}", e.to_text().unwrap());
-                    let parsed: Value = match serde_json::from_str(e.to_text().unwrap()) {
-                        Ok(a) => a,
-                        Err(_) => {
-                            continue;
-                        }
-                    };
-
-                    match parsed.get("result") {
-                        None => {}
-                        Some(_) => {
-                            subscription_id = parsed.get("result").unwrap().as_u64().unwrap();
-                            info!("[monitor_account] Subscription ID: {}", subscription_id);
-                            subscribed = true;
-                            continue;
-                        }
-                    }
-
-                    if subscribed == false {
-                        info!("[monitor_account] Subscription failed");
-                        break;
-                    }
-
-                    let liquidity_data = Self::parse_monitor_data(&parsed, true);
-                    if liquidity_data.is_some() {
-                        info!("Liquidity: {} SOL", lamports_to_sol(liquidity_data.unwrap()));
-                    }
-                }
-                Err(e) => {
-                    error!("Reconnecting. Error: {:?}", e);
-                    self.wss_monitor_liquidity_changes(address);
-                }
+            let pool_data = pool_data_sync.lock().unwrap();
+            if pool_data.liquidity_state.is_some() && pool_data.market_state.is_some() {
+                info!("[ACM] Vault Address Found");
+                vault_address = pool_data.liquidity_state.unwrap().quote_vault.clone();
+                break;
             }
         }
-    }
-
-    #[async_recursion]
-    pub async fn wss_get_account_balance(&self, address: &Pubkey, pool_data_sync: PoolDataSync) {
         let url = Url::parse(&self.wss_url).unwrap();
 
         let mut socket;
@@ -203,7 +139,7 @@ impl WebSocketClient {
             }
         }
 
-        info!("Account Balance Monitor: Connected to the server");
+        info!("[ACM] Connected to the server");
 
         let params = json!({
         "encoding": "base64",
@@ -218,7 +154,7 @@ impl WebSocketClient {
                        "jsonrpc": "2.0",
                        "id": 1,
                        "method": "accountSubscribe",
-                       "params": json!([address.to_string(), params])
+                       "params": json!([vault_address.to_string(), params])
                    }
                )
                 ).unwrap()
@@ -241,20 +177,20 @@ impl WebSocketClient {
                         None => {}
                         Some(_) => {
                             subscription_id = parsed.get("result").unwrap().as_u64().unwrap();
-                            info!("[Account Balance Monitor] Subscription ID: {}", subscription_id);
+                            info!("[ACM] Subscription ID: {}", subscription_id);
                             subscribed = true;
                             continue;
                         }
                     }
 
                     if subscribed == false {
-                        info!("[Account Balance Monitor] Subscription failed");
+                        info!("[ACM] Subscription failed");
                         break;
                     }
 
                     if subscribed {
                         let balance = Self::parse_balance(parsed);
-                        debug!("Account Balance: {} SOL", lamports_to_sol(balance.unwrap_or(0)));
+                        debug!("[ACM] Account Balance: {} SOL", lamports_to_sol(balance.unwrap_or(0)));
 
                         let mut pool_data = pool_data_sync.lock().unwrap();
                         if balance.is_some() {
@@ -269,12 +205,11 @@ impl WebSocketClient {
                     //     "account_balance.json",
                     //     serde_json::to_string_pretty(&parsed).unwrap(),
                     // ).unwrap()
-
                 }
                 Err(e) => {
                     // Reconnect
-                    error!("Reconnecting. Error: {:?}", e);
-                    let _ = self.wss_get_account_balance(address, pool_data_sync.clone());
+                    error!("[ACM] Reconnecting. Error: {:?}", e);
+                    let _ = self.wss_get_vault_balance(pool_data_sync.clone());
                     break;
                 }
             }
@@ -288,7 +223,7 @@ impl WebSocketClient {
                 let result = params.get("result").unwrap();
                 let value = result.get("value").unwrap();
                 let lamports = value.get("lamports").unwrap()
-                    .as_u64().unwrap();
+                                    .as_u64().unwrap();
                 return Some(lamports);
             }
         }
@@ -307,7 +242,7 @@ impl WebSocketClient {
             }
         }
 
-        info!("Liquidity Monitor: Connected to the server");
+        info!("[LM] Connected to the server");
 
         let params = json!({
         "encoding": "base64",
@@ -353,18 +288,18 @@ impl WebSocketClient {
                         None => {}
                         Some(_) => {
                             subscription_id = parsed.get("result").unwrap().as_u64().unwrap();
-                            info!("[Liquidity Monitor] Subscription ID: {}", subscription_id);
+                            info!("[LM] Subscription ID: {}", subscription_id);
                             subscribed = true;
                             continue;
                         }
                     }
 
                     if subscribed == false {
-                        info!("[Liquidity Monitor] Subscription failed");
+                        info!("[LM] Subscription failed");
                         break;
                     }
 
-                    let _ = Self::parse_monitor_data(&parsed, true);
+                    let _ = Self::parse_monitor_data(&parsed);
                     let pool_data = pool_data_sync.lock().unwrap();
                     if pool_data.task_done {
                         break;
@@ -372,7 +307,7 @@ impl WebSocketClient {
                 }
                 Err(e) => {
                     // Reconnect
-                    error!("Reconnecting. Error: {:?}", e);
+                    error!("[LM] Reconnecting. Error: {:?}", e);
                     let _ = self.wss_get_liquidity_data(address, pool_data_sync.clone());
                     break;
                 }
@@ -380,7 +315,7 @@ impl WebSocketClient {
         }
     }
 
-    fn parse_monitor_data(value: &Value, show_total_liquidity: bool) -> Option<u64> {
+    fn parse_monitor_data(value: &Value) -> Option<u64> {
         match value.get("params") {
             None => None,
             Some(a) => {
@@ -472,10 +407,8 @@ impl WebSocketClient {
                 }
 
                 if price_data.is_some() {
-                    if show_total_liquidity {
-                        info!("Total Liquidity: {} SOL",
+                    debug!("Total Liquidity: {} SOL",
                             lamports_to_sol(price_data.unwrap()).to_string().green());
-                    }
                     Some(price_data.unwrap())
                 } else {
                     None
@@ -527,17 +460,17 @@ impl WebSocketClient {
                              market_state: Option<MarketStateLayoutV3>,
                              liquidity_state: Option<LiquidityStateLayoutV4>) {
         if market_state.is_some() && liquidity_state.is_some() {
-            info!("Market and Liquidity found");
+            info!("[LM] Market and Liquidity found");
             let mut pool_data = pool_data_sync.lock().unwrap();
             pool_data.liquidity_state = Some(liquidity_state.unwrap());
             pool_data.market_state = Some(market_state.unwrap());
         } else if market_state.is_some() && liquidity_state.is_none() {
-            info!("Market found, waiting for liquidity pool");
+            info!("[LM] Market found, waiting for liquidity pool");
             let mut pool_data = pool_data_sync.lock().unwrap();
             pool_data.market_state = Some(market_state.unwrap());
             Self::wait_for_liquidity_pool(pool_data_sync.clone(), &wss_pool, base_mint, quote_mint, cluster_type)
         } else {
-            info!("Market and Liquidity not found. Waiting for market and pool");
+            info!("[LM] Market and Liquidity not found. Waiting for market and pool");
             Self::wait_for_pool(pool_data_sync.clone(), &wss_pool, base_mint, quote_mint, cluster_type);
         }
 
@@ -549,11 +482,10 @@ impl WebSocketClient {
             ws_1.wss_get_liquidity_data(&base_mint, db_1).await;
         });
 
-        let vault_lp = liquidity_state.unwrap().quote_vault.clone();
         let db_2 = pool_data_sync.clone();
         let ws_2 = wss_pool.clone();
         tokio::spawn(async move {
-            ws_2.wss_get_account_balance(&vault_lp, db_2).await;
+            ws_2.wss_get_vault_balance(db_2).await;
         });
     }
 
@@ -575,10 +507,10 @@ impl WebSocketClient {
 
     #[async_recursion]
     pub async fn wss_get_market_with_program_id<U: ToString + serde::Serialize + Send>(&self, base_mint: &Pubkey, quote_mint: &Pubkey,
-                                                                                pool_data_sync: PoolDataSync, program_id: U) {
+                                                                                       pool_data_sync: PoolDataSync, program_id: U) {
         let url = Url::parse(&self.wss_url).unwrap();
         let (mut socket, _response) = tungstenite::connect(url).unwrap();
-        info!("MarketStateLayoutV3: Connected to the server");
+        info!("[MARKET] Connected to the server");
 
         socket.send(
             Message::Binary(
@@ -611,13 +543,13 @@ impl WebSocketClient {
                         None => {}
                         Some(_) => {
                             subscription_id = parsed.get("result").unwrap().as_u64().unwrap();
-                            info!("[MarketStateLayoutV3] Subscription ID: {}", subscription_id);
+                            info!("[MARKET] Subscription ID: {}", subscription_id);
                             subscribed = true;
                         }
                     }
 
                     if subscribed == false {
-                        info!("[MarketStateLayoutV3] Subscription failed");
+                        info!("[MARKET] Subscription failed");
                         break;
                     }
 
@@ -629,7 +561,7 @@ impl WebSocketClient {
                     }
                 }
                 Err(e) => {
-                    error!("Reconnecting. Error: {:?}", e);
+                    error!("[MARKET] Reconnecting. Error: {:?}", e);
                     let _ = self.wss_get_market_with_program_id(base_mint, quote_mint, pool_data_sync.clone(), program_id.to_string());
                     break;
                 }
@@ -679,10 +611,10 @@ impl WebSocketClient {
 
     #[async_recursion]
     pub async fn wss_get_liquidity_with_program_id<U: ToString + serde::Serialize + Send>(&self, base_mint: &Pubkey, quote_mint: &Pubkey,
-                                                                                   pool_data_sync: PoolDataSync, program_id: U) {
+                                                                                          pool_data_sync: PoolDataSync, program_id: U) {
         let url = Url::parse(&self.wss_url).unwrap();
         let (mut socket, _response) = tungstenite::connect(url).unwrap();
-        info!("LiquidityStateLayoutV4: Connected to the server");
+        info!("[RAYDIUM] Connected to the server");
 
         socket.send(
             Message::Binary(
@@ -715,13 +647,13 @@ impl WebSocketClient {
                         None => {}
                         Some(_) => {
                             subscription_id = parsed.get("result").unwrap().as_u64().unwrap();
-                            info!("[LiquidityStateLayoutV4] Subscription ID: {}", subscription_id);
+                            info!("[RAYDIUM] Subscription ID: {}", subscription_id);
                             subscribed = true;
                         }
                     }
 
                     if subscribed == false {
-                        info!("[LiquidityStateLayoutV4] Subscription failed");
+                        info!("[RAYDIUM] Subscription failed");
                         break;
                     }
 
@@ -735,7 +667,7 @@ impl WebSocketClient {
                     }
                 }
                 Err(e) => {
-                    error!("Reconnecting. Error: {:?}", e);
+                    error!("[RAYDIUM] Reconnecting. Error: {:?}", e);
                     let _ = self.wss_get_liquidity_with_program_id(base_mint, quote_mint, pool_data_sync.clone(), program_id.to_string());
                     break;
                 }
@@ -776,14 +708,14 @@ impl WebSocketClient {
                 let naive = chrono::NaiveDateTime::from_timestamp(pool_info.liquidity_state.pool_open_time as i64, 0);
                 let datetime: DateTime<chrono::Utc> = DateTime::from_utc(naive, chrono::Utc);
                 let new_date = datetime.format("%Y-%m-%d %H:%M:%S %Z");
-                info!("Pool Open Time: {}", new_date);
+                info!("[TASK] Pool Open Time: {}", new_date);
 
                 loop {
                     let now = std::time::SystemTime::now();
                     let since_epoch = now.duration_since(UNIX_EPOCH).expect("Time went backwards");
                     let seconds = since_epoch.as_secs();
                     if pool_info.liquidity_state.pool_open_time <= seconds {
-                        info!("Pool Opened");
+                        info!("[TASK] Pool Opened");
                         f(args, &task_config, &pool_info, cluster_type);
                         break;
                     }
@@ -800,11 +732,11 @@ impl WebSocketClient {
                                            task_config: LiquidityTaskConfig,
                                            cluster_type: ClusterType,
                                            pool_data_sync: PoolDataSync) {
-        info!("Waiting for liquidity pool to be created");
+        info!("[TASK] Waiting for liquidity pool to be created");
         loop {
             let pool_data = pool_data_sync.lock().unwrap();
             if pool_data.liquidity_state.is_some() && pool_data.market_state.is_some() {
-                info!("{}", "Liquidity Pool Information Created".bold());
+                info!("[TASK] {}", "Liquidity Pool Information Created".bold());
                 let pool_info =
                     LiquidityPoolInfo::build(pool_data.liquidity_state.unwrap(), pool_data.market_state.unwrap(), cluster_type)
                         .expect("failed building liquidity pool info");
@@ -813,12 +745,12 @@ impl WebSocketClient {
                 let naive = chrono::NaiveDateTime::from_timestamp(pool_info.liquidity_state.pool_open_time as i64, 0);
                 let datetime: DateTime<chrono::Utc> = DateTime::from_utc(naive, chrono::Utc);
                 let new_date = datetime.format("%Y-%m-%d %H:%M:%S %Z");
-                info!("Pool Open Time: {}", new_date.to_string().red());
+                info!("[TASK] Pool Open Time: {}", new_date.to_string().red());
 
                 let target_liquidity: f64 = task_config.target_liquidity;
-                info!("Target Liquidity: {} SOL", target_liquidity);
+                info!("[TASK] Target Liquidity: {} SOL", target_liquidity);
 
-                info!("Finding Liquidity Account");
+                info!("[TASK] Finding Liquidity Account");
                 let mut account = rpc_client.get_token_accounts_by_owner(
                     &owner.pubkey(),
                     TokenAccountsFilter::Mint(pool_info.lp_mint),
@@ -843,14 +775,14 @@ impl WebSocketClient {
                 let account_pubkey_str = match first_account {
                     Some(e) => e,
                     None => {
-                        error!("Liquidity Account not found");
+                        error!("[TASK] Liquidity account not found");
                         let mut pool_data = pool_data_sync.lock().unwrap();
                         pool_data.task_done = true;
                         break;
                     }
                 };
 
-                info!("Liquidity Account: {}", account_pubkey_str.pubkey.clone());
+                info!("[TASK] Liquidity Account: {}", account_pubkey_str.pubkey.clone());
                 let token_account = Pubkey::from_str(account_pubkey_str.pubkey.as_str()).unwrap();
 
                 let mut balance = 0u64;
@@ -874,7 +806,7 @@ impl WebSocketClient {
                 }
 
                 if balance == 0 {
-                    error!("Token Account is burned");
+                    error!("[TASK] Token Account is burned");
                     break;
                 }
 
@@ -891,12 +823,12 @@ impl WebSocketClient {
                     let since_epoch = now.duration_since(UNIX_EPOCH).expect("Time went backwards");
                     let seconds = since_epoch.as_secs();
                     if pool_info.liquidity_state.pool_open_time <= seconds {
-                        info!("Pool Opened");
+                        info!("[TASK] Pool Opened");
                         break;
                     }
                 }
 
-                info!("Checking for liquidity increase/decrease");
+                info!("[TASK] Checking for liquidity increase/decrease");
                 let mut current_liquidity = task_config.initial_liquidity;
                 loop {
                     let mut pool_data = pool_data_sync.lock().unwrap();
@@ -909,16 +841,16 @@ impl WebSocketClient {
                         // update current liquidity
                         current_liquidity = temp_liquidity;
                         if current_liquidity > task_config.initial_liquidity {
-                            info!("Liquidity: {} SOL", current_liquidity.to_string().green());
+                            info!("[TASK] Liquidity: {} SOL", current_liquidity.to_string().green());
                         }
                         if current_liquidity < task_config.initial_liquidity {
-                            info!("Liquidity: {} SOL", current_liquidity.to_string().red());
+                            info!("[TASK] Liquidity: {} SOL", current_liquidity.to_string().red());
                         }
                         if current_liquidity >= target_liquidity {
                             pool_data.task_done = true;
                             drop(pool_data);
-                            info!("Target Liquidity Reached");
-                            info!("Liquidity: {} SOL", current_liquidity.to_string().green());
+                            info!("[TASK] Target Liquidity Reached");
+                            info!("[TASK] Current: {} SOL", current_liquidity.to_string().green());
                             f(rpc_client, &wallet_information, owner, &pool_info, cluster_type);
                             break;
                         }

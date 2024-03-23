@@ -18,7 +18,7 @@ use crate::cli::config::{Config, LiquidityConfig, MarketConfig};
 use crate::dex::raydium::layout::{LiquidityStateLayoutV4, MarketStateLayoutV3};
 use crate::dex::raydium::pool::LiquidityPoolInfo;
 use crate::dex::raydium::swap;
-use crate::utils::websocket::{LiquidityTaskConfig, WebSocketClient};
+use crate::utils::websocket::{LiquidityTaskConfig, PoolDataSync, WebSocketClient};
 
 pub mod args;
 pub mod config;
@@ -1002,9 +1002,81 @@ pub async fn create_wsol(rpc_client: &RpcClient, project_dir: &str,
     }
 }
 
-pub async fn monitor_account(wss_client: &WebSocketClient, address: &str) {
+pub async fn monitor_account(rpc_client: &RpcClient, wss_pool_client: &WebSocketClient,
+                             wss_liquid_client: &WebSocketClient, address: &str, cluster_type: ClusterType) {
     info!("Monitoring account changes for {}", address.bold().green());
-    wss_client.wss_monitor_liquidity_changes(address);
+
+    let base_mint_pub = Pubkey::from_str(address).unwrap();
+    let quote_mint_pub = spl_token::native_mint::id();
+
+    let pool_data_sync = Arc::new(
+        Mutex::new(utils::websocket::PoolChunk {
+            liquidity_state: None,
+            market_state: None,
+            liquidity_amount: None,
+            task_done: false,
+        }));
+
+    // check if market already exists
+    let market_state = match MarketStateLayoutV3::get_with_reqwest(
+        &rpc_client.url(),
+        &base_mint_pub,
+        &quote_mint_pub,
+        cluster_type,
+    ).await {
+        Ok(a) => {
+            Some(a)
+        }
+        Err(_) => {
+            None
+        }
+    };
+
+    // check if pool already exists
+    let liquidity_state = match LiquidityStateLayoutV4::get_with_reqwest(
+        &rpc_client.url(),
+        &base_mint_pub,
+        &quote_mint_pub,
+        cluster_type,
+    ).await {
+        Ok(a) => {
+            Some(a)
+        }
+        Err(_) => {
+            None
+        }
+    };
+
+    WebSocketClient::monitor_liquidity(
+        pool_data_sync.clone(),
+        &wss_pool_client,
+        &wss_liquid_client,
+        &base_mint_pub,
+        &quote_mint_pub,
+        cluster_type,
+        market_state,
+        liquidity_state
+    );
+
+    loop {
+        let pool_data = pool_data_sync.lock().unwrap();
+        if pool_data.liquidity_state.is_some() && pool_data.market_state.is_some() {
+            let mut current_liquidity = 0f64;
+            loop {
+                let pool_data = pool_data_sync.lock().unwrap();
+                if pool_data.liquidity_amount.is_some() {
+                    let temp_liquidity = lamports_to_sol(pool_data.liquidity_amount.unwrap());
+                    // check if liquidity is the same
+                    if current_liquidity == temp_liquidity {
+                        continue;
+                    }
+                    // update current liquidity
+                    current_liquidity = temp_liquidity;
+                    info!("[MONITOR] Liquidity: {} SOL", current_liquidity.to_string().green());
+                }
+            }
+        }
+    }
 }
 
 pub async fn rug_token(wss_pool_client: &WebSocketClient,

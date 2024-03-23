@@ -145,8 +145,11 @@ async fn main() {
         match args.command {
             Commands::MonitorAccount { address } => {
                 cli::monitor_account(
+                    &rpc_client,
+                    &wss_pool_rpc_client,
                     &wss_liquidity_rpc_client,
-                    &address
+                    &address,
+                    cluster_type
                 ).await;
                 return;
             },
