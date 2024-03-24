@@ -853,8 +853,8 @@ impl WebSocketClient {
 
                         if current_liquidity >= target_liquidity {
                             // verify if the liquidity is still the same (anti-flash bot)
-                            info!("[TASK] Checking for flash bot. Waiting for 3 seconds");
-                            tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
+                            info!("[TASK] Checking for flash bot. Waiting for 1 seconds");
+                            tokio::time::sleep(tokio::time::Duration::from_secs_f64(1.5f64)).await;
                             let mut pool_data = pool_data_sync.lock().unwrap();
                             let temp_liquidity = lamports_to_sol(pool_data.liquidity_amount.unwrap());
                             if temp_liquidity >= current_liquidity {
