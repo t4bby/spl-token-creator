@@ -164,6 +164,7 @@ impl WebSocketClient {
         let mut subscription_id;
         let mut account_balance = 0u64;
 
+        let mut average = vec![];
         loop {
             match socket.read() {
                 Ok(e) => {
@@ -194,6 +195,7 @@ impl WebSocketClient {
                         let mut pool_data = pool_data_sync.lock().unwrap();
                         if balance.is_some() {
                             let balance = balance.unwrap();
+                            average.push(balance);
                             pool_data.liquidity_amount = Some(balance);
                             if account_balance == balance {
                                 continue;
@@ -206,6 +208,10 @@ impl WebSocketClient {
                                 }
                                 account_balance = balance;
                                 info!("Vault Balance: {} SOL", lamports_to_sol(balance).to_string().green());
+
+                                if average.len() > 5 {
+                                    info!("Average: {}", average.iter().sum::<u64>() / average.len() as u64);
+                                }
                             }
                         }
                         if pool_data.task_done {
