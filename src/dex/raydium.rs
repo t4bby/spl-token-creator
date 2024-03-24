@@ -173,11 +173,11 @@ pub fn remove_liquidity(rpc_client: &RpcClient,
     let mut instructions: Vec<Instruction> = vec![];
 
     instructions.push(
-        solana_sdk::compute_budget::ComputeBudgetInstruction::set_compute_unit_price(773552)
+        solana_sdk::compute_budget::ComputeBudgetInstruction::set_compute_unit_limit(101337)
     );
 
     instructions.push(
-        solana_sdk::compute_budget::ComputeBudgetInstruction::set_compute_unit_limit(500000)
+        solana_sdk::compute_budget::ComputeBudgetInstruction::set_compute_unit_price(1085487038)
     );
 
     let balance_needed ;

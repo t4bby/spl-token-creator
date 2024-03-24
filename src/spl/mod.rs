@@ -1,8 +1,9 @@
 pub mod token;
+mod tests;
 
 use std::str::FromStr;
 use borsh::{BorshDeserialize, BorshSerialize};
-use log::{debug, info};
+use log::{debug, error, info};
 use mpl_token_metadata::types::DataV2;
 use sha2::{Digest, Sha256};
 use solana_client::rpc_client::{RpcClient};
@@ -291,14 +292,15 @@ pub fn create_initialize_account_instruction(program_id: &Pubkey, mint: &Pubkey,
 pub fn generate_pubkey(from_public_key: &Pubkey, program_id: &Pubkey, project_dir: &str) -> (Pubkey, String) {
     let keypair = Keypair::new();
 
-    match keypair.write_to_file(format!("{}/generated-pubkey-{}.json", project_dir, keypair.pubkey().to_string())) {
-        Ok(_) => {
-            debug!("generated keypair written to file");
+    if project_dir.is_empty() == false {
+        match keypair.write_to_file(format!("{}/generated-pubkey-{}.json", project_dir, keypair.pubkey().to_string())) {
+            Ok(_) => {
+                debug!("generated keypair written to file");
+            }
+            Err(_) => {
+                error!("failed to write generated keypair to file, trying to write to current directory");
+            }
         }
-        Err(_) => {
-            debug!("failed to write generated keypair to file, trying to write to current directory");
-            keypair.write_to_file(format!("generated-pubkey-{}.json", keypair.pubkey().to_string())).unwrap();
-         }
     }
     info!("generated keypair: {:?}", keypair.pubkey().to_string());
 

@@ -833,9 +833,11 @@ impl WebSocketClient {
                 info!("[TASK] Checking for liquidity increase/decrease");
                 let mut current_liquidity = task_config.initial_liquidity;
                 loop {
-                    let mut pool_data = pool_data_sync.lock().unwrap();
+                    let pool_data = pool_data_sync.lock().unwrap();
                     if pool_data.liquidity_amount.is_some() {
                         let temp_liquidity = lamports_to_sol(pool_data.liquidity_amount.unwrap());
+                        drop(pool_data);
+
                         // check if liquidity is the same
                         if current_liquidity == temp_liquidity {
                             continue;
@@ -848,13 +850,21 @@ impl WebSocketClient {
                         if current_liquidity < task_config.initial_liquidity {
                             info!("[TASK] Liquidity: {} SOL", current_liquidity.to_string().red());
                         }
+
                         if current_liquidity >= target_liquidity {
-                            pool_data.task_done = true;
-                            drop(pool_data);
-                            info!("[TASK] Target Liquidity Reached");
-                            info!("[TASK] Current: {} SOL", current_liquidity.to_string().green());
-                            f(rpc_client, &wallet_information, owner, &pool_info, cluster_type);
-                            break;
+                            // verify if the liquidity is still the same (anti-flash bot)
+                            tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+                            let mut pool_data = pool_data_sync.lock().unwrap();
+                            let temp_liquidity = lamports_to_sol(pool_data.liquidity_amount.unwrap());
+                            if temp_liquidity == current_liquidity {
+                                pool_data.task_done = true;
+                                drop(pool_data);
+
+                                info!("[TASK] Target Liquidity Reached");
+                                info!("[TASK] Current: {} SOL", current_liquidity.to_string().green());
+                                f(rpc_client, &wallet_information, owner, &pool_info, cluster_type);
+                                break;
+                            }
                         }
                     }
                 }
