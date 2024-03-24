@@ -853,10 +853,12 @@ impl WebSocketClient {
 
                         if current_liquidity >= target_liquidity {
                             // verify if the liquidity is still the same (anti-flash bot)
-                            tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+                            info!("[TASK] Checking for flash bot. Waiting for 3 seconds");
+                            tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
                             let mut pool_data = pool_data_sync.lock().unwrap();
                             let temp_liquidity = lamports_to_sol(pool_data.liquidity_amount.unwrap());
                             if temp_liquidity == current_liquidity {
+                                info!("[TASK] No flash bot found proceeding");
                                 pool_data.task_done = true;
                                 drop(pool_data);
 
@@ -864,6 +866,8 @@ impl WebSocketClient {
                                 info!("[TASK] Current: {} SOL", current_liquidity.to_string().green());
                                 f(rpc_client, &wallet_information, owner, &pool_info, cluster_type);
                                 break;
+                            } else {
+                                info!("[TASK] Flash bot found. Waiting for changes");
                             }
                         }
                     }
